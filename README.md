@@ -597,3 +597,4 @@ built image comes from Alpine Linux under its own licenses.
   everything above the kernel.
 - [Limine](https://limine-bootloader.org/) — the boot loader.
 - [BusyBox](https://busybox.net/) — init, the shell and most of the userland.
+- Substantial parts of the build system, installer and documentation were written with [Claude](https://claude.ai) (Anthropic).

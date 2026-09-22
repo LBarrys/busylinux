@@ -257,7 +257,7 @@ if [ -n "$USER_NAME" ]; then
     # not in the base, so the group does not exist yet -- create it exactly the
     # way seatd's own pre-install does, which makes that a no-op later.
     chroot "$MNT" /bin/busybox addgroup -S seat 2>/dev/null || :
-    for g in video input audio wheel; do
+    for g in video input audio wheel seat; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
     if [ -t 0 ]; then chroot "$MNT" /bin/busybox passwd "$USER_NAME"; fi

@@ -1,0 +1,53 @@
+#!/bin/busybox sh
+/bin/busybox --install -s /bin
+export PATH=/bin
+
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t devtmpfs devtmpfs /dev
+
+rescue() {
+    printf '\n%s\nStarting a rescue shell; type "exit" to retry booting.\n\n' "$*"
+    setsid cttyhack sh
+}
+
+root='' fstype='' flags=rw
+for arg in $(cat /proc/cmdline); do
+    case $arg in
+        root=*)       root=${arg#root=} ;;
+        rootfstype=*) fstype=${arg#rootfstype=} ;;
+        rootflags=*)  flags=rw,${arg#rootflags=} ;;
+        rescue)       rescue "Rescue shell requested (kernel parameter 'rescue')." ;;
+    esac
+done
+
+while :; do
+    [ -n "$root" ] || { rescue "No root= parameter given."; continue; }
+
+    # NVMe and USB devices appear asynchronously; wait up to 15 seconds.
+    dev='' tries=0
+    while [ "$tries" -lt 15 ]; do
+        case $root in
+            LABEL=*|UUID=*) dev=$(findfs "$root" 2>/dev/null) || dev='' ;;
+            *)              dev=$root ;;
+        esac
+        [ -n "$dev" ] && [ -b "$dev" ] && break
+        dev='' tries=$((tries + 1))
+        sleep 1
+    done
+
+    if [ -z "$dev" ]; then
+        rescue "Root device '$root' not found."
+    elif ! mount ${fstype:+-t "$fstype"} -o "$flags" "$dev" /newroot; then
+        rescue "Could not mount $dev."
+    elif ! [ -x /newroot/sbin/init ]; then
+        umount /newroot
+        rescue "$dev has no /sbin/init."
+    else
+        break
+    fi
+done
+
+mount --move /dev /newroot/dev
+umount /proc /sys
+exec switch_root /newroot /sbin/init

@@ -1,0 +1,21 @@
+#!/bin/sh -e
+install -Dm644 inittab       "$1/etc/inittab"
+install -Dm755 rcS           "$1/etc/init.d/rcS"
+install -Dm755 rcK           "$1/etc/init.d/rcK"
+install -Dm644 busylinux.sh  "$1/etc/profile.d/busylinux.sh"
+install -Dm644 issue         "$1/etc/issue"
+install -Dm644 motd          "$1/etc/motd"
+
+# ID_LIKE=alpine is both true and useful: anything that branches on the
+# distribution will reach for apk, which is what this system has.
+install -d "$1/etc" "$1/usr/lib"
+cat > "$1/etc/os-release" <<EOF
+NAME="BusyLinux"
+ID=busylinux
+ID_LIKE=alpine
+VERSION_ID=$2
+PRETTY_NAME="BusyLinux $2"
+HOME_URL="https://busybox.net/"
+EOF
+chmod 644 "$1/etc/os-release"
+ln -sf ../../etc/os-release "$1/usr/lib/os-release"

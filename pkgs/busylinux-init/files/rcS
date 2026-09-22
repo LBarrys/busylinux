@@ -1,0 +1,72 @@
+#!/bin/sh
+# Run once by /etc/inittab at boot. Every service here is optional: it starts
+# only if the package providing it is installed, so the same script works for
+# the bare base and for a full desktop.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+mountpoint -q /proc || mount -t proc     proc     /proc
+mountpoint -q /sys  || mount -t sysfs    sysfs    /sys
+mountpoint -q /dev  || mount -t devtmpfs devtmpfs /dev
+mountpoint -q /run  || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run
+mkdir -p /dev/pts /dev/shm /run/lock
+mountpoint -q /dev/pts || mount -t devpts -o gid=5,mode=620 devpts /dev/pts
+mountpoint -q /dev/shm || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm
+mkdir -p /run/user && chmod 1777 /run/user
+
+mount -o remount,rw /
+mount -a
+
+hostname -F /etc/hostname
+dmesg -n 3
+
+syslogd -C512      # in-memory log, read it with logread
+klogd
+
+# Device manager: eudev once a desktop pulls it in (libinput needs it),
+# BusyBox mdev otherwise.
+if [ -x /sbin/udevd ]; then
+    udevd -d
+    udevadm trigger --type=subsystems --action=add
+    udevadm trigger --type=devices --action=add
+    udevadm settle -t 10
+else
+    mdev -d
+fi
+
+# Modules named in Alpine's modules-load.d directories.
+for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
+    [ -f "$conf" ] || continue
+    while read -r module _; do
+        case $module in ''|'#'*) continue ;; esac
+        modprobe "$module" 2>/dev/null || :
+    done < "$conf"
+done
+
+# Seat management, so an ordinary user can start a Wayland compositor. Alpine's
+# seatd package creates a 'seat' group; fall back to 'video' if it is absent.
+if [ -x /usr/bin/seatd ] && ! pgrep -x seatd > /dev/null 2>&1; then
+    seat_group=video
+    getent group seat > /dev/null 2>&1 && seat_group=seat
+    seatd -g "$seat_group" > /dev/null 2>&1 &
+fi
+
+# System bus: portals, rtkit and flatpak all talk to it.
+if [ -x /usr/bin/dbus-daemon ]; then
+    mkdir -p /run/dbus
+    dbus-uuidgen --ensure > /dev/null 2>&1 || :
+    dbus-daemon --system --fork > /dev/null 2>&1 || :
+fi
+
+# BlueZ, for the MT7922's Bluetooth half. It needs the system bus, so it goes
+# after dbus; Alpine builds it with --libexecdir=/usr/lib.
+if [ -x /usr/lib/bluetooth/bluetoothd ] && [ -x /usr/bin/dbus-daemon ]; then
+    /usr/lib/bluetooth/bluetoothd --nodetach > /dev/null 2>&1 &
+fi
+
+ip link set lo up
+for dev in /sys/class/net/*; do
+    name=${dev##*/}
+    [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue   # Ethernet and Wi-Fi
+    ip link set "$name" up
+    udhcpc -i "$name" -b -S -p "/run/udhcpc.$name.pid" > /dev/null 2>&1 || :
+done

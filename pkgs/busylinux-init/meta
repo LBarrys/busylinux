@@ -1,0 +1,8 @@
+version=1
+release=3
+desc="BusyBox init, boot scripts and profile for BusyLinux"
+url=https://busybox.net/
+license=MIT
+depends="busybox busybox-binsh"
+# /etc/inittab is alpine-baselayout-data's, /etc/motd is alpine-baselayout's.
+replaces="alpine-baselayout-data alpine-baselayout"

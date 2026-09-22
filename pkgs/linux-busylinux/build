@@ -1,0 +1,46 @@
+#!/bin/sh -e
+# "make tinyconfig" switches everything off; the fragments switch back on
+# exactly what this machine needs. See files/busylinux.config for the hardware.
+unset PKG_CONFIG_SYSROOT_DIR PKG_CONFIG_LIBDIR PKG_CONFIG_PATH
+
+# The kernel Makefile assigns CC and HOSTCC with '=', which overrides the
+# environment, so the compiler has to be given on the command line.
+make() { command make CC="${HOSTCC:-gcc}" HOSTCC="${HOSTCC:-gcc}" "$@"; }
+
+make -s tinyconfig > /dev/null
+
+fragments=busylinux.config
+[ "${VM_SUPPORT:-1}" = 1 ] && fragments="$fragments vm.config"
+# shellcheck disable=SC2086
+./scripts/kconfig/merge_config.sh -m -Q .config $fragments > /dev/null
+make -s olddefconfig
+
+if [ "${MENUCONFIG:-0}" = 1 ]; then make menuconfig; fi
+
+# Starting from nothing means an option whose dependency is missing is dropped
+# in silence. These would only turn up as a machine that does not boot, has no
+# picture, no sound or no network, so check them here instead.
+missing=
+for symbol in MODULES BLK_DEV_INITRD DEVTMPFS_MOUNT EFI_STUB EFI_PARTITION \
+              BLOCK PCI NET INET UNIX PACKET MULTIUSER BINFMT_ELF PROC_SYSCTL \
+              EPOLL SIGNALFD TIMERFD FUTEX SHMEM INOTIFY_USER \
+              FILE_LOCKING MEMFD_CREATE FHANDLE RSEQ KCMP \
+              TTY VT UNIX98_PTYS SERIAL_8250_CONSOLE FRAMEBUFFER_CONSOLE \
+              BLK_DEV_NVME SATA_AHCI EXT4_FS VFAT_FS USB_XHCI_PCI \
+              INPUT_EVDEV HID_GENERIC \
+              DRM_AMDGPU DRM_AMD_DC SND_USB_AUDIO SND_HDA_INTEL \
+              R8169 MT7921E RFKILL BT_HCIBTUSB BT_HCIBTUSB_MTK BT_HIDP \
+              X86_AMD_PSTATE MICROCODE \
+              USER_NS SECCOMP FUSE_FS OVERLAY_FS; do
+    grep -q "^CONFIG_$symbol=[ym]" .config || missing="$missing $symbol"
+done
+[ -z "$missing" ] || { printf 'config lost:%s\n' "$missing" >&2; exit 1; }
+
+printf 'kernel: %s options enabled\n' "$(grep -c '=y$\|=m$' .config)"
+
+make bzImage modules
+release=$(make -s kernelrelease)
+make -s INSTALL_MOD_PATH="$1" INSTALL_MOD_STRIP=1 modules_install
+rm -f "$1/lib/modules/$release/build" "$1/lib/modules/$release/source"
+install -Dm644 arch/x86/boot/bzImage "$1/boot/vmlinuz-busylinux"
+install -Dm644 .config "$1/boot/config-$release"

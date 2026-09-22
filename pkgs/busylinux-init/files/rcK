@@ -1,0 +1,9 @@
+#!/bin/sh
+echo "Shutting down..."
+killall5 -15
+sleep 1
+killall5 -9
+swapoff -a 2>/dev/null
+sync
+umount -a -r 2>/dev/null
+mount -o remount,ro /

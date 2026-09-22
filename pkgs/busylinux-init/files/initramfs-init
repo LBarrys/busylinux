@@ -24,7 +24,6 @@ done
 while :; do
     [ -n "$root" ] || { rescue "No root= parameter given."; continue; }
 
-    # NVMe and USB devices appear asynchronously; wait up to 15 seconds.
     dev='' tries=0
     while [ "$tries" -lt 15 ]; do
         case $root in

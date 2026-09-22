@@ -6,8 +6,6 @@ install -Dm644 busylinux.sh  "$1/etc/profile.d/busylinux.sh"
 install -Dm644 issue         "$1/etc/issue"
 install -Dm644 motd          "$1/etc/motd"
 
-# ID_LIKE=alpine is both true and useful: anything that branches on the
-# distribution will reach for apk, which is what this system has.
 install -d "$1/etc" "$1/usr/lib"
 cat > "$1/etc/os-release" <<EOF
 NAME="BusyLinux"

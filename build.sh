@@ -1,37 +1,10 @@
 #!/usr/bin/env bash
-# BusyLinux: a musl system built on Alpine Linux edge, with a kernel
-# configured from tinyconfig for one specific machine and BusyBox init.
-#
-# Alpine owns the core: musl, BusyBox, apk-tools and every library come from
-# their repositories, so the 15,000 packages in edge/community/testing install
-# without any ABI games. This project owns the kernel, the init layer and the
-# image.
-#
-# Environment variables:
-#   PACKAGES=           extra Alpine packages to bake into the image
-#   BASE_PACKAGES=      override the default package set
-#   ALPINE_MIRROR=      default https://dl-cdn.alpinelinux.org/alpine
-#   ALPINE_BRANCH=      default edge
-#   REPO_URL=           an extra URL where the running system finds this
-#                       repository, for pulling kernel updates over the network
-#   LOCAL_REPO=0        do not copy this repository into the image
-#   VM_SUPPORT=0        drop the virtio/bochs drivers from the kernel
-#   MENUCONFIG=1        open menuconfig after the fragments are merged
-#   REBUILD=1           rebuild packages even when a cached .apk exists
-#   JOBS=N              parallel make jobs (default: nproc)
-#   IMAGE_SIZE=8G       size of the (sparse) disk image
-#   HOST_UID/HOST_GID   chown the finished files in /build/out to this user
-#
-# Usage:
-#   build.sh                     build everything and write /build/out
-#   build.sh --checksum PKG...   refresh a recipe's sha256sums
 set -euo pipefail
 
 ARCH=${ARCH:-x86_64}
 ALPINE_MIRROR=${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
 ALPINE_BRANCH=${ALPINE_BRANCH:-edge}
 
-# A base that boots, gets on the network and can install the rest.
 BASE_PACKAGES=${BASE_PACKAGES:-"alpine-baselayout alpine-keys apk-tools busybox
     busybox-binsh busybox-suid mdev-conf musl-utils amd-ucode
     limine-efi-x86_64 linux-busylinux busylinux-init"}
@@ -42,16 +15,14 @@ ROOT_LABEL=BUSYLINUX_ROOT
 LOCAL_REPO_DIR=/var/lib/busylinux/repo
 JOBS=${JOBS:-$(nproc)}
 
-# The apk used inside this container. Alpine edge ships the same 3.x series,
-# which reads both their v2 repositories and this project's v3 one.
 APK_GIT=https://github.com/alpinelinux/apk-tools
 APK_REF=v3.0.8
 
 TOP=/build
 PKGS=${PKGS_DIR:-/usr/local/share/busylinux/pkgs}
-CACHE=$TOP/cache            # sources, built packages, signing key (keep as a volume)
+CACHE=$TOP/cache
 SRC=$CACHE/sources
-REPO=$CACHE/packages        # this project's own repository
+REPO=$CACHE/packages
 KEYS=$CACHE/keys
 HOSTDIR=$CACHE/host
 BLD=$TOP/work
@@ -65,20 +36,12 @@ log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*" >&2; }
 info() { printf '\033[1;34m  > %s\033[0m\n' "$*" >&2; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
-# ---------------------------------------------------------------------------
-# Recipes
-# ---------------------------------------------------------------------------
-# pkgs/<name>/{meta,sources,sha256sums,build,files/,split/}; see the README.
-# Recipes are built with the container's own toolchain: the kernel needs no
-# target libraries, and everything else comes from Alpine.
-
 load_meta() {
     unset version release desc url license depends makedepends subpackages \
           options provides replaces
     release=0
     desc='' url='' license='' depends=''
     subpackages='' options='' provides='' replaces=''
-    # shellcheck disable=SC1090
     . "$PKGS/$1/meta"
     [ -n "${version:-}" ] || die "$1: meta sets no version"
     desc=${desc:-$1}
@@ -188,9 +151,6 @@ checksum_recipe() {
     info "$recipe: wrote $(grep -c . "$PKGS/$recipe/sha256sums") checksums"
 }
 
-# ---------------------------------------------------------------------------
-# apk plumbing
-# ---------------------------------------------------------------------------
 build_host_apk() {
     APK=$HOSTDIR/bin/apk
     if [ -x "$APK" ]; then
@@ -221,8 +181,6 @@ setup_key() {
     info "private key: ${KEY#"$TOP"/} inside the build cache - keep it"
 }
 
-# Alpine's signing keys, fetched over HTTPS (the container verifies the
-# certificate) and then used to verify every package apk installs.
 fetch_alpine_keys() {
     local index=$BLD/APKINDEX version
     [ -f "$KEYS/pub/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub" ] && {
@@ -247,11 +205,8 @@ reindex() {
         "$REPO/$ARCH"/*.apk > /dev/null
 }
 
-# Repositories used while building the image. Plain http: apk verifies every
-# package against the keys above, and an empty root has no CA bundle yet.
 install_repos() {
     local base=${ALPINE_MIRROR/https:/http:}
-    # "v3 <base>" makes apk look for <base>/<arch>/Packages.adb.
     printf 'v3 %s\n%s/%s/main\n%s/%s/community\n@testing %s/%s/testing\n' \
         "$REPO" \
         "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH"
@@ -265,9 +220,6 @@ apk_root() {
     apk_host --root "$root" --repositories-file "$BLD/repositories" "$@"
 }
 
-# ---------------------------------------------------------------------------
-# Building this project's packages
-# ---------------------------------------------------------------------------
 strip_tree() {
     local dir=$1 file
     while IFS= read -r -d '' file; do
@@ -285,7 +237,6 @@ make_package() {
     local out="$REPO/$ARCH/$name-$pkgver.apk" script
     local -a args=()
     mkdir -p "$REPO/$ARCH"
-    # One space-separated value: repeated --info depends: flags overwrite.
     [ -n "$pdeps" ] && args+=(--info "depends:$pdeps")
     [ -n "$provides" ] && args+=(--info "provides:$provides")
     [ -n "$replaces" ] && args+=(--info "replaces:$replaces")
@@ -336,15 +287,6 @@ build_recipe() {
     rm -rf "$srcdir" "$destdir" "$dir"/sub-*
 }
 
-# ---------------------------------------------------------------------------
-# Image
-# ---------------------------------------------------------------------------
-# A copy of this project's repository inside the image. Without it apk has two
-# installed packages -- the kernel and the init layer -- that no repository
-# offers, which it reports on every run and which "apk upgrade --prune" would
-# delete. It also gives the machine somewhere to roll a kernel back to.
-# Only the newest release of each package goes in: the build cache keeps every
-# kernel ever built and they are 9 MB each.
 install_local_repo() {
     local root=$1 dir apk name newest
     [ "${LOCAL_REPO:-1}" = 1 ] || return 0
@@ -366,17 +308,12 @@ write_config() {
     [ "${LOCAL_REPO:-1}" = 1 ] && repo_line="v3 $LOCAL_REPO_DIR"
     [ -n "$REPO_URL" ] && repo_line="$repo_line"$'\n'"v3 $REPO_URL"
     cat > "$root/etc/apk/repositories" <<EOF
-# This project's repository: the kernel and the init layer.
 $repo_line
-
-# Alpine $ALPINE_BRANCH. 'testing' is tagged, so it is used only when asked
-# for by name: apk add cliphist@testing
 $ALPINE_MIRROR/$ALPINE_BRANCH/main
 $ALPINE_MIRROR/$ALPINE_BRANCH/community
 @testing $ALPINE_MIRROR/$ALPINE_BRANCH/testing
 EOF
     echo busylinux > "$root/etc/hostname"
-    # Root starts without a password; set one on first boot with passwd.
     sed -i 's/^root:[^:]*:/root::/' "$root/etc/shadow"
 }
 
@@ -399,7 +336,6 @@ build_initramfs() {
         gzip -9 > "$OUT/initramfs.cpio.gz"
 }
 
-# ---------------------------------------------------------------------------
 main() {
     mkdir -p "$CACHE" "$SRC" "$KEYS" "$REPO/$ARCH" "$OUT" "$BLD"
 
@@ -422,12 +358,9 @@ main() {
     reindex
 
     log "Installing the image from Alpine $ALPINE_BRANCH"
-    # shellcheck disable=SC2086
     apk_root "$ROOTFS" add --initdb $BASE_PACKAGES $PACKAGES
     install_local_repo "$ROOTFS"
     write_config "$ROOTFS"
-    # Real nodes, so that the checks below (and anything else redirecting to
-    # /dev/null before devtmpfs is mounted) do not leave a regular file there.
     mkdir -p "$ROOTFS/dev"
     rm -f "$ROOTFS/dev/null" "$ROOTFS/dev/console"
     mknod -m 666 "$ROOTFS/dev/null"    c 1 3
@@ -446,7 +379,6 @@ main() {
 
     log "Kernel and initramfs"
     cp "$ROOTFS/boot/vmlinuz-busylinux" "$OUT/vmlinuz"
-    # Early CPU microcode, loaded as the first initrd by the boot loader.
     [ -f "$ROOTFS/boot/amd-ucode.img" ] && cp "$ROOTFS/boot/amd-ucode.img" "$OUT/"
     build_initramfs
     info "kernel $(ls "$ROOTFS/lib/modules"), $(du -h "$OUT/vmlinuz" | cut -f1) vmlinuz"
@@ -466,12 +398,8 @@ main() {
     local ucode=''
     if [ -f "$OUT/amd-ucode.img" ]; then
         cp "$OUT/amd-ucode.img" "$iso/"
-        # The microcode has to be the first module the kernel is handed.
         ucode="    module_path: boot():/amd-ucode.img"$'\n'
     fi
-    # Limine's own EFI application comes from the image; the El Torito FAT
-    # image it needs for a CD is 3 MB and would be dead weight there, so that
-    # one package goes into a throwaway root.
     cp "$ROOTFS/usr/share/limine/BOOTX64.EFI" "$iso/EFI/BOOT/"
     rm -rf "$limcd"
     apk_root "$limcd" add --initdb limine-efi-cd > /dev/null

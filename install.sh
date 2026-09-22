@@ -1,31 +1,28 @@
 #!/bin/sh
-# Install BusyLinux onto a disk. UEFI only.
-#
-# Run this as root from any running Linux with the disk tools below -- an
-# Alpine live USB is the obvious one, since this is a musl system and the
-# chroot at the end then works without surprises.
-#
-#   ./install.sh --disk /dev/nvme0n1
-#
-# It writes a GPT with two partitions, and nothing else on the disk survives:
-#
-#   1   1 GiB    EFI system  FAT32, mounted at /boot, holds the kernel and Limine
-#   2   rest     root        ext4, labelled BUSYLINUX_ROOT
-#
-# The boot loader is Limine: its BOOTX64.EFI comes out of the root filesystem
-# that was just unpacked, so nothing needs installing on the machine you run
-# this from beyond the partitioning tools.
-#
-# Options:
-#   --disk DEV          the disk to install to (required)
-#   --dir DIR           where out/ is (default: ./out, then the script's dir)
-#   --esp-size SIZE     EFI system partition size (default 1G)
-#   --root-size SIZE    root partition size (default: the rest of the disk)
-#   --hostname NAME     default busylinux
-#   --user NAME         create this user in video/input/audio/seat, set a password
-#   --no-nvram          do not add a UEFI boot entry; rely on \EFI\BOOT\BOOTX64.EFI
-#   --yes               do not ask for confirmation
 set -eu
+
+usage() {
+    cat <<'EOT'
+Install BusyLinux onto a disk. UEFI only.
+
+    install.sh --disk /dev/nvme0n1
+
+Writes a GPT with two partitions; nothing else on the disk survives:
+
+    1   1 GiB    EFI system  FAT32, mounted at /boot, holds the kernel and Limine
+    2   rest     root        ext4, labelled BUSYLINUX_ROOT
+
+Options:
+    --disk DEV          the disk to install to (required)
+    --dir DIR           where out/ is (default: ./out, then the script's dir)
+    --esp-size SIZE     EFI system partition size (default 1G)
+    --root-size SIZE    root partition size (default: the rest of the disk)
+    --hostname NAME     default busylinux
+    --user NAME         create this user in video/input/audio/seat, set a password
+    --no-nvram          do not add a UEFI boot entry
+    --yes               do not ask for confirmation
+EOT
+}
 
 DISK='' DIR='' ESP_SIZE=1G ROOT_SIZE='' HOSTNAME=busylinux USER_NAME=''
 NVRAM=1 ASSUME_YES=0
@@ -55,12 +52,11 @@ while [ $# -gt 0 ]; do
         --user)      USER_NAME=$2; shift 2 ;;
         --no-nvram)  NVRAM=0; shift ;;
         --yes|-y)    ASSUME_YES=1; shift ;;
-        -h|--help)   sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)   usage; exit 0 ;;
         *)           die "unknown option: $1" ;;
     esac
 done
 
-# --- checks -----------------------------------------------------------------
 [ "$(id -u)" = 0 ] || die "run this as root"
 [ -n "$DISK" ]     || die "no --disk given (try --help)"
 [ -b "$DISK" ]     || die "$DISK is not a block device"
@@ -81,15 +77,11 @@ need mkfs.vfat dosfstools
 need mkfs.ext4 e2fsprogs
 need tar
 
-# Writing a boot entry needs this machine to be UEFI-booted itself. Where it is
-# not, the install still works: \EFI\BOOT\BOOTX64.EFI is the removable path
-# every firmware falls back to, and the board will find it.
 if [ ! -d /sys/firmware/efi/efivars ]; then
     NVRAM=0
     info "not booted via UEFI: installing the removable path only"
 fi
 
-# --- confirm ----------------------------------------------------------------
 log "About to erase $DISK"
 sgdisk --print "$DISK" 2>/dev/null | tail -n +5 || :
 printf '\n'
@@ -99,7 +91,6 @@ if [ "$ASSUME_YES" != 1 ]; then
     [ "$answer" = "$DISK" ] || die "not confirmed"
 fi
 
-# --- partition --------------------------------------------------------------
 log "Partitioning $DISK"
 wipefs -a "$DISK" > /dev/null 2>&1 || :
 sgdisk --zap-all "$DISK" > /dev/null
@@ -110,16 +101,10 @@ sgdisk \
     -n "2:0:$root_end"  -t 2:8300 -c 2:"BusyLinux root" \
     "$DISK" > /dev/null
 
-# nvme0n1 -> nvme0n1p1, sda -> sda1
 part() { case $DISK in *[0-9]) printf '%sp%s\n' "$DISK" "$1" ;;
                        *)      printf '%s%s\n'  "$DISK" "$1" ;; esac; }
 ESP=$(part 1) ROOT=$(part 2)
 
-# Getting the kernel to notice a new partition table is famously inconsistent;
-# try everything that might be installed, then wait for the nodes to turn up.
-# This has to be done again after mkfs: closing a partition makes the kernel
-# re-read the table, which deletes and recreates every node on the disk, and
-# mounting in that window fails with "Can't lookup blockdev".
 reread() {
     partprobe "$DISK"            > /dev/null 2>&1 && return 0
     partx -u "$DISK"             > /dev/null 2>&1 && return 0
@@ -161,11 +146,8 @@ wait_parts
 info "$ESP  vfat  $ESP_LABEL"
 info "$ROOT  ext4  $ROOT_LABEL"
 
-# --- unpack -----------------------------------------------------------------
 log "Unpacking the root filesystem"
 MNT=$(mktemp -d)
-# Always with an explicit type: leaving mount to guess is one more thing that
-# can go wrong on a filesystem created seconds ago.
 mount -t ext4 "$ROOT" "$MNT"
 mkdir -p "$MNT/boot"
 mount -t vfat "$ESP" "$MNT/boot"
@@ -174,20 +156,14 @@ cp "$DIR/initramfs.cpio.gz" "$MNT/boot/"
 if [ -f "$DIR/amd-ucode.img" ]; then cp "$DIR/amd-ucode.img" "$MNT/boot/"; fi
 info "$(du -sh "$MNT" | cut -f1) on $ROOT, $(du -sh "$MNT/boot" | cut -f1) on $ESP"
 
-# --- configure --------------------------------------------------------------
 log "Configuring"
 printf '%s\n' "$HOSTNAME" > "$MNT/etc/hostname"
 cat > "$MNT/etc/fstab" <<EOF
-# <device>              <dir>         <type>   <options>                         <dump> <pass>
 LABEL=$ROOT_LABEL  /             ext4     rw,relatime                       0      1
 LABEL=$ESP_LABEL       /boot         vfat     rw,noatime,fmask=0077,dmask=0077  0      2
 /dev/cdrom              /media/cdrom  iso9660  noauto,ro                         0      0
 EOF
 
-# --- boot loader ------------------------------------------------------------
-# Limine on UEFI is two files on the ESP: the EFI application and its config.
-# /EFI/BOOT is the removable path, which every firmware boots without being
-# told to, and Limine looks for its config next to itself there first.
 log "Installing Limine"
 LIMINE_EFI=$MNT/usr/share/limine/BOOTX64.EFI
 [ -f "$LIMINE_EFI" ] ||
@@ -199,9 +175,6 @@ kernel=$(cd "$MNT/boot" && ls vmlinuz-* 2>/dev/null | head -1)
 mkdir -p "$MNT/boot/EFI/BOOT"
 cp "$LIMINE_EFI" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
 
-# boot():/ is the partition the config was read from, so this ESP. The
-# microcode has to be the first module: the kernel reads it before it does
-# anything else with the CPU.
 ucode=''
 if [ -f "$MNT/boot/amd-ucode.img" ]; then
     ucode="    module_path: boot():/amd-ucode.img
@@ -233,8 +206,6 @@ EOF
 info "$(du -h "$MNT/boot/EFI/BOOT/BOOTX64.EFI" | cut -f1) BOOTX64.EFI + limine.conf"
 
 if [ "$NVRAM" = 1 ] && command -v efibootmgr > /dev/null 2>&1; then
-    # Drop any entry left by an earlier run, so re-installing does not stack up
-    # duplicates in the board's boot menu.
     efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\? BusyLinux$/\1/p' |
     while read -r num; do
         efibootmgr -b "$num" -B > /dev/null 2>&1 || :
@@ -247,17 +218,11 @@ if [ "$NVRAM" = 1 ] && command -v efibootmgr > /dev/null 2>&1; then
     fi
 fi
 
-# --- optional user ----------------------------------------------------------
 if [ -n "$USER_NAME" ]; then
     log "Creating $USER_NAME"
     chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
-    # 'seat' is the one that is easy to miss and fatal: rcS runs seatd -g seat,
-    # /run/seatd.sock is srwxrwx--- root:seat, and a compositor that cannot open
-    # it dies with "Failed to open session: Function not implemented". seatd is
-    # not in the base, so the group does not exist yet -- create it exactly the
-    # way seatd's own pre-install does, which makes that a no-op later.
     chroot "$MNT" /bin/busybox addgroup -S seat 2>/dev/null || :
-    for g in video input audio wheel seat; do
+    for g in video input audio seat; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
     if [ -t 0 ]; then chroot "$MNT" /bin/busybox passwd "$USER_NAME"; fi

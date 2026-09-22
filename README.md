@@ -437,50 +437,6 @@ Starting from nothing means an option whose dependency is missing is dropped
 `olddefconfig` and fails the build otherwise. Three that were found this way,
 all EXPERT-gated and all off in `tinyconfig`:
 
-| Symbol | Without it |
-|---|---|
-| `CONFIG_TTY` | no virtual terminals *and* no serial console — a silent machine |
-| `CONFIG_FILE_LOCKING` | `apk` cannot lock its database: "Function not implemented" |
-| `CONFIG_MEMFD_CREATE` | Wayland buffers, PipeWire and Mesa fail in obscure ways |
-
-If you add hardware and the build stops with `config lost: FOO`, that option's
-dependency is missing — add it too rather than deleting the check.
-
-## BusyBox: vi, ash and the line editor
-
-BusyBox comes from Alpine as a binary package, so there is no `menuconfig` step
-in this build: the applet set and every `CONFIG_FEATURE_*` are fixed by
-[`main/busybox/busyboxconfig`](https://git.alpinelinux.org/aports/tree/main/busybox/busyboxconfig)
-in aports. That config is close to maximal for the things worth having:
-
-| | Already on in Alpine's build |
-|---|---|
-| vi | `COLON`, `COLON_EXPAND`, `YANKMARK`, `SEARCH`, `DOT_CMD`, `READONLY`, `SET`, `SETOPTS`, `WIN_RESIZE`, `ASK_TERMINAL`, `USE_SIGNALS`, `UNDO` + `UNDO_QUEUE=256`, `8BIT`, `MAX_LEN=4096` |
-| ash | `BASH_COMPAT`, `BASH_SOURCE_CURDIR`, `BASH_NOT_FOUND_HOOK`, `JOB_CONTROL`, `ALIAS`, `RANDOM_SUPPORT`, `EXPAND_PRMT`, `IDLE_TIMEOUT`, `ECHO`, `PRINTF`, `TEST`, `HELP`, `GETOPTS`, `CMDCMD`, `VERSION_VAR`, `SH_MATH_64`, `SH_HISTFILESIZE` |
-| line editor | `EDITING`, `EDITING_VI`, `HISTORY=2000`, `SAVEHISTORY`, `FANCY_PROMPT`, `WINCH`, `TAB_COMPLETION`, `USERNAME_COMPLETION`, `REVERSE_SEARCH`, `LOCALE_SUPPORT`, `UNICODE_SUPPORT` with combining and wide characters |
-
-Three things are off that you would notice:
-
-| Off | What you lose |
-|---|---|
-| `FEATURE_VI_REGEX_SEARCH` | `/pattern` and `:s///` match literal text, not POSIX regex |
-| `FEATURE_VI_VERBOSE_STATUS` | no "5 lines deleted" messages on the status line |
-| `FEATURE_EDITING_SAVE_ON_EXIT` | history is appended per command instead of rewritten at exit — cosmetic |
-
-Two of those cost nothing to work around, and neither needs a rebuild:
-
-```sh
-set -o vi                    # vi keybindings in ash; EDITING_VI is compiled in
-apk add vim                  # regex, syntax highlighting, a real undo tree
-apk add bash bash-completion
-```
-
-Getting the missing symbols means building BusyBox from source and shadowing
-Alpine's package, which undoes "Alpine owns the core". It can be done safely as
-a **static** musl binary — Arch's `musl` package provides `musl-gcc`, and a
-static BusyBox has no ABI surface at all — packaged as `busybox-busylinux` with
-`provides=busybox` and `replaces=busybox`. No such recipe is in this tree.
-
 ## Repositories
 
 `/etc/apk/repositories` in the image:

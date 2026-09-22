@@ -31,10 +31,8 @@ unmodified. This project owns three things:
 - [Building](#building)
 - [Running under QEMU](#running-under-qemu)
 - [Installing on real hardware](#installing-on-real-hardware)
-- [Installing a desktop](#installing-a-desktop)
 - [What rcS starts](#what-rcs-starts)
 - [The kernel](#the-kernel)
-- [BusyBox: vi, ash and the line editor](#busybox-vi-ash-and-the-line-editor)
 - [Repositories](#repositories)
 - [Adding your own packages](#adding-your-own-packages)
 - [Known limits](#known-limits)
@@ -293,35 +291,6 @@ another partition.
 The root filesystem is found by label. If another disk in the machine also
 carries `BUSYLINUX_ROOT`, the initramfs takes whichever it finds first —
 relabel one with `e2label`, or use `root=UUID=`.
-
-## Installing a desktop
-
-The base is deliberately bare. Everything below exists in edge today.
-**Do not drop `eudev`** — see [The two that bite](#the-two-that-bite).
-
-```sh
-apk add \
-    linux-firmware-amdgpu linux-firmware-mediatek \
-    mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati \
-    vulkan-loader eudev dbus rtkit seatd mkrundir \
-    iwd bluez wireless-regdb \
-    pipewire pipewire-alsa pipewire-pulse wireplumber \
-    sway swaybg swayidle swaylock foot waybar tofi xwayland \
-    xdg-desktop-portal xdg-desktop-portal-gtk \
-    papirus-icon-theme breeze-cursors wl-clipboard grim slurp \
-    font-noto font-noto-extra font-noto-arabic font-noto-cjk \
-    font-noto-cjk-extra font-noto-emoji font-noto-symbols \
-    firefox flatpak 7zip
-
-# these live in testing, which is tagged so it is never used by accident
-apk add cliphist@testing gammastep@testing wiremix@testing unrar-free@testing
-```
-
-That comes to 318 packages and about 1.5 GB installed. For niri instead of
-sway, swap `sway swaybg` for `niri xwayland-satellite`.
-
-`iwd` handles Wi-Fi association (`iwctl station wlan0 connect SSID`), and
-BlueZ is started by `rcS`, so `bluetoothctl` works once it is installed.
 
 ### The two that bite
 

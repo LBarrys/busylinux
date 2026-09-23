@@ -234,7 +234,9 @@ if [ -t 0 ]; then
         info "root still has no password; set one after the first boot"
 elif [ -n "$USER_NAME" ]; then
     chroot "$MNT" /bin/busybox passwd -l root > /dev/null 2>&1 || :
-    info "root account locked; log in as $USER_NAME and use doas or su -"
+    sed -i "s|^$USER_NAME:[^:]*:|$USER_NAME::|" "$MNT/etc/shadow"
+    info "root is locked and $USER_NAME has an EMPTY password."
+    info "Log in as $USER_NAME on tty1 and run 'passwd' before anything else."
 else
     info "WARNING: root has an EMPTY password and getty runs on tty1-3 and ttyS0."
     info "WARNING: anyone at the keyboard is root. Run 'passwd root' on first boot."

@@ -13,7 +13,7 @@ unmodified. This project owns three things:
   that go with it;
 - **the image** — disk image, UEFI ISO, initramfs, an installer, and a signed
   apk repository for the two packages above.
-- **the boot loader** ... Limine 12.9 (Alpine's), UEFI only 
+- **the boot loader** ... Limine 12.9 (Alpine's), UEFI only.
 
 ## License
 

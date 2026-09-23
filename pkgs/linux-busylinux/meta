@@ -1,5 +1,5 @@
 version=6.18.52
-release=5
+release=6
 desc="Linux kernel built from tinyconfig for Ryzen 7000 / Radeon RX 7000 hardware"
 url=https://www.kernel.org/
 license=GPL-2.0-only

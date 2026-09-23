@@ -6,27 +6,42 @@ of OpenRC.
 
 Alpine owns the core. musl, BusyBox, apk-tools and every library come straight
 from Alpine's repositories, so the ~36,000 packages in edge install and run
-unmodified. This project owns three things:
+unmodified.
 
-- **the kernel** built from `tinyconfig` plus a hardware fragment, not defconfig;
-- **the init layer** BusyBox init, one conditional `rcS`, and the `/etc` files
-  that go with it;
-- **the image** disk image, UEFI ISO, initramfs, an installer, and a signed apk repository.
-- **the boot loader** Limine 12.9 (Alpine's), UEFI only.
+## The machine this kernel is for
+
+```
+CPU     AMD Ryzen 7 7800X3D (Zen 4, AM5, 8C/16T)
+GPU     Radeon RX 7900 GRE (Navi 31) + Raphael iGPU  -> amdgpu
+Board   MSI MAG B650 TOMAHAWK WIFI
+          LAN     Realtek RTL8125BG 2.5G             -> r8169
+          Audio   Realtek ALC4080                    -> USB Audio Class, not HDA
+          Storage 3x NVMe, 6x SATA
+RAM     32 GB DDR5, EXPO (firmware-side; the kernel needs nothing for it)
+```
+
+Wireless and Bluetooth are deliberately absent.
+To build for different hardware, edit
+`pkgs/linux-busylinux/files/busylinux.config`.
 
 ## Building
 
-The build runs entirely inside an Arch Linux container; nothing is compiled on the host.
+The build runs entirely inside an Arch Linux container; nothing is compiled on
+the host.
 
 ```sh
 apk add docker qemu-system-x86_64
 rc-service docker start
 addgroup "$USER" docker          # log out and back in
+
 git clone https://github.com/LBarrys/busylinux.git
 cd busylinux
 docker build -t busylinux-builder .
 mkdir -p out
-docker run --rm -it -v "$PWD/out:/build/out" -v busylinux-cache:/build/cache -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" busylinux-builder
+docker run --rm -it \
+  -v "$PWD/out:/build/out" -v busylinux-cache:/build/cache \
+  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+  busylinux-builder
 ```
 
 | Variable | Effect |
@@ -34,7 +49,7 @@ docker run --rm -it -v "$PWD/out:/build/out" -v busylinux-cache:/build/cache -e 
 | `PACKAGES="..."` | extra Alpine packages to bake into the image |
 | `BASE_PACKAGES="..."` | replace the default package set |
 | `ALPINE_BRANCH=v3.24` | build against a stable release instead of edge |
-| `ALPINE_MIRROR=...` | use a closer mirror |
+| `ALPINE_MIRROR=...` | a different mirror; the default is `https://mirror.maeen.sa/alpine` |
 | `REPO_URL=https://...` | an extra network URL for this repository |
 | `LOCAL_REPO=0` | do not copy this repository into the image |
 | `VM_SUPPORT=0` | drop virtio and bochs: a kernel that only knows your hardware |
@@ -44,9 +59,15 @@ docker run --rm -it -v "$PWD/out:/build/out" -v busylinux-cache:/build/cache -e 
 | `IMAGE_SIZE=16G` | size of the sparse `disk.img` |
 
 ## Running under QEMU
+
 ```sh
-qemu-system-x86_64 -m 2G -nographic -kernel out/vmlinuz -initrd out/initramfs.cpio.gz -append "root=LABEL=BUSYLINUX_ROOT console=ttyS0" -drive file=out/disk.img,format=raw,if=virtio -nic user,model=virtio-net-pci
+qemu-system-x86_64 -m 2G -nographic \
+  -kernel out/vmlinuz -initrd out/initramfs.cpio.gz \
+  -append "root=LABEL=BUSYLINUX_ROOT console=ttyS0" \
+  -drive file=out/disk.img,format=raw,if=virtio \
+  -nic user,model=virtio-net-pci
 ```
+
 Log in as `root` with no password.
 
 ## Installing on real hardware
@@ -57,6 +78,7 @@ chroot at the end works without surprises.
 
 ```sh
 apk add sgdisk dosfstools e2fsprogs parted efibootmgr
+
 ./install.sh --disk /dev/nvme0n1 --user alice
 ```
 
@@ -68,25 +90,82 @@ writes:
 | 1 | 1 GiB | EFI system, FAT32, **mounted at `/boot`** |
 | 2 | rest | root, ext4, `LABEL=BUSYLINUX_ROOT` |
 
-It unpacks `rootfs.tar.gz`, copies the initramfs and microcode, writes
-`/etc/fstab`, drops Limine and its config into `\EFI\BOOT`, and adds a UEFI
-boot entry with `efibootmgr` where it can. `\EFI\BOOT\BOOTX64.EFI` is the
-removable path every firmware falls back to, so the machine still boots if its
-NVRAM is cleared, and re-running the installer replaces its own old entry
-rather than stacking duplicates.
-
-The ESP *is* `/boot`, which is the point: `apk add linux-busylinux` writes the
-new kernel straight to the partition the firmware reads, and `limine.conf`
-already names it.
-
 | Option | |
 |---|---|
-| `--user NAME` | create a user in `video`, `input`, `audio`, `seat`, set a password |
+| `--user NAME` | create a user in `video`, `input`, `audio`, `seat`, `wheel`, set a password |
 | `--esp-size 2G` | bigger ESP, for keeping several kernels |
 | `--root-size 200G` | leave the rest of the disk unpartitioned |
 | `--hostname NAME` | default `busylinux` |
 | `--no-nvram` | removable path only, do not touch the firmware boot menu |
 | `--yes` | skip the confirmation |
+
+`doas` is in the base image and `busylinux-init` ships `/etc/doas.d/wheel.conf`
+(`permit persist :wheel`), so the user created by `--user` can use it at once.
+Alpine builds `doas` with `--with-doas-confdir`, which means `/etc/doas.conf` is
+never read — rules belong in `/etc/doas.d/*.conf`.
+
+## What rcS starts
+
+`/etc/init.d/rcS` is deliberately conditional — the same script serves the bare
+base and a full desktop:
+
+| Step | Condition |
+|---|---|
+| `/proc`, `/sys`, `/dev`, `/run`, devpts, shm, `/run/user` | always |
+| `sysctl -p` for `/etc/sysctl.d/*.conf` | always |
+| `syslogd -C512` and `klogd` | always (read with `logread`) |
+| `udevd` + `udevadm trigger` | if eudev is installed, otherwise `mdev -d` |
+| modules from `/etc/modules-load.d/*.conf` | if any |
+| `seatd -g seat` (or `-g video`) | if seatd is installed |
+| `dbus-daemon --system` | if dbus is installed |
+| `udhcpc` on every Ethernet interface | always |
+
+## Upgrading the kernel
+
+`kernel-update.sh` does the whole thing: toolchain, source, config, build,
+package, sign, index, install. Run it as root from a checkout.
+
+```sh
+apk add git
+git clone https://github.com/LBarrys/busylinux.git
+cd busylinux
+./kernel-update.sh
+```
+
+The script is not standalone: it drives `pkgs/linux-busylinux/build` and reads
+`meta` and `sha256sums` next to it, so copying it out of the tree and running it
+on its own fails. It looks for the recipe beside itself, in the current
+directory, in `/usr/local/share/busylinux` and in `/root/busylinux`, and
+`--checkout DIR` points it anywhere else.
+
+| Option | |
+|---|---|
+| `--version X.Y.Z` | kernel version, default from `pkgs/linux-busylinux/meta` |
+| `--sha256 SUM` | expected checksum, for a version this tree has none for |
+| `--config-only` | configure, check the symbols, stop |
+| `--release N` | apk release, default: installed release + 1 |
+| `--jobs N` | default `nproc` |
+| `--workdir DIR` | default `/var/tmp/busylinux-kernel` |
+| `--checkout DIR` | where this repository is, if not beside the script |
+| `--no-vm` | leave out virtio and bochs |
+| `--menuconfig` | open `menuconfig` after the fragments are merged |
+| `--no-fallback` | do not keep the running kernel as `vmlinuz-previous` |
+| `--no-install` | build and package only |
+| `--keep-source` | reuse the build tree instead of re-extracting |
+| `--yes` | skip the confirmation |
+
+### Moving to a different kernel version
+
+`--version` takes any released version and the kernel.org directory follows
+the major number, so `--version 7.2.7` fetches from `v7.x` and `--version
+6.18.53` from `v6.x`. The release number resets to `r0` when the version
+changes, and apk treats the result as an upgrade.
+
+The tree only carries a checksum for the version in `pkgs/linux-busylinux/meta`.
+For any other, take the sum from
+`https://cdn.kernel.org/pub/linux/kernel/vN.x/sha256sums.asc` and pass
+`--sha256`; without it, TLS is the only thing vouching for the tarball and the
+script says so.
 
 ## License
 
@@ -97,9 +176,9 @@ built image comes from Alpine Linux under its own licenses.
 
 ## Acknowledgements
 
-- [Alpine Linux](https://alpinelinux.org/) musl, BusyBox, apk-tools and
+- [Alpine Linux](https://alpinelinux.org/) — musl, BusyBox, apk-tools and
   everything above the kernel.
-- [Limine](https://limine-bootloader.org/) the boot loader.
-- [BusyBox](https://busybox.net/) init, the shell and most of the userland.
+- [Limine](https://limine-bootloader.org/) — the boot loader.
+- [BusyBox](https://busybox.net/) — init, the shell and most of the userland.
 - Substantial parts of the build system, installer and documentation were
   written with [Claude](https://claude.ai) (Anthropic).

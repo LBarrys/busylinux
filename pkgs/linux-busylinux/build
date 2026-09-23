@@ -34,7 +34,16 @@ for symbol in MODULES BLK_DEV_INITRD DEVTMPFS_MOUNT EFI_STUB EFI_PARTITION \
 done
 [ -z "$missing" ] || { printf 'config lost:%s\n' "$missing" >&2; exit 1; }
 
+crept=
+for symbol in CPU_SUP_INTEL CPU_SUP_HYGON CPU_SUP_CENTAUR CPU_SUP_ZHAOXIN \
+              SLUB_TINY WLAN BT; do
+    if grep -q "^CONFIG_$symbol=[ym]" .config; then crept="$crept $symbol"; fi
+done
+[ -z "$crept" ] || { printf 'config crept back:%s\n' "$crept" >&2; exit 1; }
+
 printf 'kernel: %s options enabled\n' "$(grep -c '=y$\|=m$' .config)"
+
+if [ "${CONFIG_ONLY:-0}" = 1 ]; then exit 0; fi
 
 make bzImage modules
 release=$(make -s kernelrelease)

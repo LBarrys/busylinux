@@ -20,6 +20,7 @@ Options:
     --release N         apk release number (default: installed release + 1)
     --jobs N            parallel make jobs (default: nproc)
     --workdir DIR       build directory (default: /var/tmp/busylinux-kernel)
+    --checkout DIR      where this repository is, if not beside the script
     --key FILE          signing key (default: /root/keys/local.rsa, created)
     --repo DIR          local repository (default: /var/lib/busylinux/repo/x86_64)
     --menuconfig        open menuconfig after the fragments are merged
@@ -34,7 +35,7 @@ EOT
 VERSION='' RELEASE='' JOBS='' WORK=/var/tmp/busylinux-kernel
 KEY=/root/keys/local.rsa REPO=/var/lib/busylinux/repo/x86_64
 VM=1 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
-SHA256='' NAME=linux-busylinux
+SHA256='' CHECKOUT='' NAME=linux-busylinux
 MIRROR=https://cdn.kernel.org/pub/linux/kernel
 
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -47,6 +48,7 @@ while [ $# -gt 0 ]; do
         --release)     RELEASE=$2; shift 2 ;;
         --jobs)        JOBS=$2; shift 2 ;;
         --workdir)     WORK=$2; shift 2 ;;
+        --checkout)    CHECKOUT=$2; shift 2 ;;
         --key)         KEY=$2; shift 2 ;;
         --repo)        REPO=$2; shift 2 ;;
         --sha256)      SHA256=$2; shift 2 ;;
@@ -64,9 +66,35 @@ done
 
 [ "$(id -u)" = 0 ] || die "run this as root"
 
-HERE=$(cd "$(dirname "$0")" && pwd)
-RECIPE=$HERE/pkgs/$NAME
-[ -f "$RECIPE/build" ] || die "$RECIPE/build not found; run this from a checkout"
+HERE=$(cd "$(dirname "$0")" && pwd -P)
+NL='
+'
+RECIPE='' TRIED=''
+for d in "$CHECKOUT" "$HERE" "$PWD" /usr/local/share/busylinux /root/busylinux; do
+    [ -n "$d" ] || continue
+    case ${d%/} in '') p=/pkgs/$NAME ;; *) p=${d%/}/pkgs/$NAME ;; esac
+    case $NL$TRIED in *"$NL$p$NL"*) continue ;; esac
+    TRIED=$TRIED$p$NL
+    if [ -f "$p/build" ]; then RECIPE=$p; break; fi
+done
+if [ -z "$RECIPE" ]; then
+    printf '\033[1;31merror: could not find pkgs/%s/build\033[0m\n' "$NAME" >&2
+    printf 'Looked in:\n' >&2
+    printf '%s' "$TRIED" | sed 's/^/    /' >&2
+    cat >&2 <<EOT
+
+This script drives the recipe in the repository rather than repeating it, so it
+needs the checkout. Run it from there:
+
+    apk add git
+    git clone https://github.com/LBarrys/busylinux.git
+    cd busylinux
+    ./kernel-update.sh
+
+or point at an existing checkout with --checkout DIR.
+EOT
+    exit 1
+fi
 
 if [ -z "$VERSION" ]; then
     VERSION=$(sed -n 's/^version=//p' "$RECIPE/meta")
@@ -159,24 +187,7 @@ mkdir -p "$PKGDIR"
 MAKEFLAGS="-j$JOBS"
 export MAKEFLAGS VM_SUPPORT="$VM" MENUCONFIG
 if [ "$CONFIG_ONLY" = 1 ]; then
-    ( cd "$SRCDIR"
-      fragments=busylinux.config
-      if [ "$VM" = 1 ]; then fragments="$fragments vm.config"; fi
-      make -s tinyconfig > /dev/null
-      # shellcheck disable=SC2086
-      ./scripts/kconfig/merge_config.sh -m -Q .config $fragments > /dev/null
-      make -s olddefconfig
-      sed -n '/^for symbol in /,/^done$/p' "$RECIPE/build" > /tmp/symcheck.$$
-      missing=''
-      # shellcheck disable=SC1090
-      . /tmp/symcheck.$$
-      rm -f /tmp/symcheck.$$
-      if [ -n "$missing" ]; then
-          printf '\033[1;31mconfig lost:%s\033[0m\n' "$missing"
-          exit 1
-      fi
-      printf 'kernel: %s options enabled, every asserted symbol present\n' \
-          "$(grep -c '=y$\|=m$' .config)" )
+    ( cd "$SRCDIR" && CONFIG_ONLY=1 sh -e "$RECIPE/build" "$PKGDIR" "$VERSION" )
     log "Done (configuration only)"
     exit 0
 fi

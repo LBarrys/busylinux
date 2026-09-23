@@ -5,3 +5,4 @@ files/busylinux.sh
 files/issue
 files/motd
 files/sysctl-hardening.conf
+files/doas.conf

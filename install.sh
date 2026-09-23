@@ -18,7 +18,8 @@ Options:
     --esp-size SIZE     EFI system partition size (default 1G)
     --root-size SIZE    root partition size (default: the rest of the disk)
     --hostname NAME     default busylinux
-    --user NAME         create this user in video/input/audio/seat, set a password
+    --user NAME         create this user in video/input/audio/seat/wheel,
+                        set a password
     --no-nvram          do not add a UEFI boot entry
     --yes               do not ask for confirmation
 EOT
@@ -221,10 +222,17 @@ fi
 if [ -n "$USER_NAME" ]; then
     log "Creating $USER_NAME"
     chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
-    chroot "$MNT" /bin/busybox addgroup -S seat 2>/dev/null || :
+    for g in seat wheel; do
+        chroot "$MNT" /bin/busybox addgroup -S "$g" 2>/dev/null || :
+    done
     for g in video input audio seat wheel; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
+    if [ -f "$MNT/etc/doas.d/wheel.conf" ]; then
+        info "$USER_NAME is in wheel: doas works (permit persist :wheel)"
+    else
+        info "$USER_NAME is in wheel, but /etc/doas.d/wheel.conf is missing"
+    fi
     if [ -t 0 ]; then chroot "$MNT" /bin/busybox passwd "$USER_NAME"; fi
 fi
 

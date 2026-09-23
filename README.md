@@ -16,8 +16,8 @@ unmodified. This project owns three things:
 
 | | |
 |---|---|
-| Kernel | 6.18.52, **3.9 MB**, 1,289 options, 92 modules |
-| Base image | **43 MB**, 21 packages |
+| Kernel | 6.18.52, **3.9 MB**, 1,172 options, 58 modules |
+| Base image | **39 MB**, 21 packages |
 | libc | musl 1.2.6 (Alpine's) |
 | Package manager | apk-tools 3.0.8 (Alpine's), v2 and v3 repositories |
 | Boot loader | Limine 12.9 (Alpine's), UEFI only |
@@ -31,6 +31,7 @@ unmodified. This project owns three things:
 - [Building](#building)
 - [Running under QEMU](#running-under-qemu)
 - [Installing on real hardware](#installing-on-real-hardware)
+- [Running a Wayland session](#running-a-wayland-session)
 - [What rcS starts](#what-rcs-starts)
 - [The kernel](#the-kernel)
 - [Repositories](#repositories)
@@ -50,8 +51,8 @@ Alpine's setup tooling. Anything written for Alpine applies unless it touches
 | | BusyLinux | Alpine `linux-lts` |
 |---|---|---|
 | vmlinuz | 3.9 MB | ~13 MB |
-| modules | 92 | thousands |
-| installed | 21 MB | 152 MiB |
+| modules | 58 | thousands |
+| installed | 19 MB | 152 MiB |
 | built from | `tinyconfig` + one hardware fragment | everything, for every machine |
 
 The consequence that matters: **this kernel does not come from Alpine, so
@@ -66,26 +67,18 @@ Alpine's `alpine-base` pulls in `openrc`, `busybox-openrc` and
 by `/etc/inittab`, and every service is a conditional block in one `rcS`.
 
 `rc-update`, `rc-service`, `rc-status`, runlevels and `/etc/conf.d/*` do not
-exist. Adding a daemon means editing `rcS`.
-
-### Missing Alpine tooling
-
-`alpine-conf` is not installed, so none of `setup-alpine`, `setup-disk`,
-`setup-interfaces`, `setup-xorg-base`, `setup-wayland-base`, `update-kernel`,
-`lbu` or the apkovl mechanism are available. Neither is `alpine-release`, so
-there is no `/etc/alpine-release`; `/etc/os-release` comes from
-`busylinux-init`.
-
-`mkinitfs` is not used either. Alpine regenerates its initramfs on every kernel
-upgrade through apk triggers. The initramfs here is a hand-written BusyBox one
-that mounts root by label and `switch_root`s; it contains no modules, because
-every driver needed to reach root is built in, so it never needs regenerating.
+exist. Adding a daemon means editing `rcS`. `alpine-conf` is absent too, so
+there is no `setup-alpine`, `setup-disk`, `update-kernel` or `lbu`.
 
 ### Boot loader
 
 Limine, UEFI only, installed as two files on an ESP that *is* `/boot`. Alpine's
 `setup-disk` uses syslinux/extlinux or GRUB and keeps `/boot` on the root
 filesystem. There is no `update-extlinux` and no BIOS path.
+
+`mkinitfs` is not used either. The initramfs here is a hand-written BusyBox one
+that mounts root by label and `switch_root`s; it holds no modules, because every
+driver needed to reach root is built in, so it never needs regenerating.
 
 ### What is identical
 
@@ -100,19 +93,13 @@ GPU     Radeon RX 7900 GRE (Navi 31) + Raphael iGPU  -> amdgpu
 Board   MSI MAG B650 TOMAHAWK WIFI
           LAN     Realtek RTL8125BG 2.5G             -> r8169
           Audio   Realtek ALC4080                    -> USB Audio Class, not HDA
-          Wi-Fi   MediaTek MT7922 802.11ax           -> mt7921e (PCIe)
-          BT      MT7922 companion controller        -> btusb + btmtk (USB)
           Storage 3x NVMe, 6x SATA
 RAM     32 GB DDR5, EXPO (firmware-side; the kernel needs nothing for it)
 ```
 
-Two devices on this board are USB devices that do not look like USB devices.
-The ALC4080 is a USB codec on an internal port, so `CONFIG_SND_USB_AUDIO` is
-what makes sound work — HDA is built only for the display audio on the GPU. The
-MT7922 is split: its Wi-Fi half is PCIe and binds `mt7921e`, while its
-Bluetooth half is a USB device and needs `btusb` with
-`CONFIG_BT_HCIBTUSB_MTK=y`, which pulls in `btmtk`. Both halves want
-`linux-firmware-mediatek`.
+The ALC4080 is worth singling out: it is a USB codec on an internal port, so
+`CONFIG_SND_USB_AUDIO` is what makes sound work — HDA is built only for the
+display audio on the GPU. Wireless and Bluetooth are deliberately absent.
 
 To build for different hardware, edit
 `pkgs/linux-busylinux/files/busylinux.config`.
@@ -152,6 +139,8 @@ apk add docker qemu-system-x86_64
 rc-service docker start
 addgroup "$USER" docker          # log out and back in
 
+git clone https://github.com/LBarrys/busylinux.git
+cd busylinux
 docker build -t busylinux-builder .
 mkdir -p out
 docker run --rm -it \
@@ -159,9 +148,6 @@ docker run --rm -it \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   busylinux-builder
 ```
-
-**Keep the `busylinux-cache` volume.** It holds the kernel source, the built
-packages and this repository's private signing key.
 
 | Variable | Effect |
 |---|---|
@@ -189,11 +175,6 @@ qemu-system-x86_64 -m 2G -nographic \
 
 Log in as `root` with no password.
 
-`out/busylinux.iso` is a 9 MB UEFI boot medium for the same kernel — Limine,
-the kernel and the initramfs, nothing else. It is useful for booting a machine
-whose ESP has gone wrong. It is **not** a live system: it looks for a disk
-labelled `BUSYLINUX_ROOT` and drops to the rescue shell if there is none.
-
 ## Installing on real hardware
 
 `install.sh` does the whole thing. Run it as root from an Alpine live USB — any
@@ -205,11 +186,6 @@ apk add sgdisk dosfstools e2fsprogs parted efibootmgr
 
 ./install.sh --disk /dev/nvme0n1 --user alice
 ```
-
-There is no boot loader in that list. Limine on UEFI is an EFI application and
-a text file, and its `BOOTX64.EFI` comes out of the root filesystem that was
-just unpacked, so the machine you install *from* needs only the partitioning
-tools.
 
 The installer asks you to type the disk name before it touches anything, then
 writes:
@@ -249,50 +225,29 @@ already names it.
 
 ```sh
 apk update
-apk add linux-firmware-amdgpu linux-firmware-mediatek
+apk add linux-firmware-amdgpu linux-firmware-rtl_nic
 ```
 
-Without those the GPU falls back to a bare framebuffer and the MT7922 does not
-associate. Reboot afterwards — `amdgpu` binds at boot and will not pick up
-firmware that appeared later.
+Those are the only two firmware packages this kernel ever asks for. Without the
+first the GPU falls back to a bare framebuffer; the second is the
+`rtl_nic/rtl8125b-2.fw` patch the built-in `r8169` requests when the link comes
+up. Reboot afterwards — `amdgpu` binds at boot and will not pick up firmware
+that appeared later.
 
-### Installing by hand
+## Running a Wayland session
 
-Partition and format, then:
+There is no display manager and no OpenRC. `rcS` has already started `seatd`,
+the system D-Bus and `udevd`; the rest belongs to the session. Log in **on
+tty1**, not over serial or ssh — the TTY backend needs a real virtual terminal
+to take over — then:
 
 ```sh
-mount /dev/nvme0n1p2 /mnt && mkdir /mnt/boot && mount /dev/nvme0n1p1 /mnt/boot
-tar -xpf out/rootfs.tar.gz -C /mnt --numeric-owner
-cp out/initramfs.cpio.gz out/amd-ucode.img /mnt/boot/
-mkdir -p /mnt/boot/EFI/BOOT
-cp /mnt/usr/share/limine/BOOTX64.EFI /mnt/boot/EFI/BOOT/
+dbus-run-session sway
 ```
 
-with `/mnt/boot/EFI/BOOT/limine.conf`:
+`XDG_RUNTIME_DIR` is set by `/etc/profile.d/busylinux.sh`.
 
-```
-timeout: 3
-
-/BusyLinux
-    protocol: linux
-    path: boot():/vmlinuz-busylinux
-    cmdline: root=LABEL=BUSYLINUX_ROOT rw
-    module_path: boot():/amd-ucode.img
-    module_path: boot():/initramfs.cpio.gz
-```
-
-`boot():` is the partition the config was read from, so paths are relative to
-the ESP. Modules are handed to the kernel in the order given, and the microcode
-must be **first**: the kernel reads it before it does anything else with the
-CPU. Limine looks for its config beside its own EFI application before anywhere
-else, so `\EFI\BOOT\limine.conf` cannot be shadowed by a stray config on
-another partition.
-
-The root filesystem is found by label. If another disk in the machine also
-carries `BUSYLINUX_ROOT`, the initramfs takes whichever it finds first —
-relabel one with `e2label`, or use `root=UUID=`.
-
-### The two that bite
+Two things bite, and both are silent.
 
 **`eudev` is not optional.** `apk` pulls in `eudev-libs` on its own, because
 libinput links against `libudev.so.1` — but that is the *library*, not the
@@ -320,37 +275,6 @@ adduser alice
 for g in video input seat audio; do addgroup alice $g; done
 ```
 
-Log in **on tty1**, not over serial or ssh: the TTY backend needs a real
-virtual terminal to take over.
-
-### Starting a session
-
-There is no display manager and no OpenRC. `rcS` has already started `seatd`,
-the system D-Bus and `udevd`; the rest belongs to the session:
-
-```sh
-dbus-run-session sway
-```
-
-and in `~/.config/sway/config`:
-
-```
-exec pipewire
-exec pipewire-pulse
-exec wireplumber
-exec /usr/libexec/xdg-desktop-portal &
-```
-
-`XDG_RUNTIME_DIR` is set by `/etc/profile.d/busylinux.sh`.
-
-### Two GPUs
-
-A monitor plugged into the motherboard's HDMI or DisplayPort is driven by the
-Raphael iGPU, which is a second DRM card. Cross-GPU output is the most fragile
-path in every Wayland compositor. Putting both monitors on the discrete card
-avoids it entirely. `ls /sys/class/drm/*/status` shows which connectors are
-attached to which card.
-
 ## What rcS starts
 
 `/etc/init.d/rcS` is deliberately conditional — the same script serves the bare
@@ -364,8 +288,7 @@ base and a full desktop:
 | modules from `/etc/modules-load.d/*.conf` | if any |
 | `seatd -g seat` (or `-g video`) | if seatd is installed |
 | `dbus-daemon --system` | if dbus is installed |
-| `bluetoothd` | if bluez is installed and dbus is running |
-| `udhcpc` on every Ethernet and Wi-Fi interface | always |
+| `udhcpc` on every Ethernet interface | always |
 
 ### mdev needs a device table
 
@@ -389,11 +312,11 @@ Install `eudev` and `rcS` uses `udevd` instead, which brings its own rules.
 
 `pkgs/linux-busylinux/files/busylinux.config` is a Kconfig fragment merged onto
 `make tinyconfig`. Every line is something the machine above needs; nothing
-else is on. Adding hardware means adding a line:
+else is on. Adding hardware means adding a line, then bumping `release=` in
+`pkgs/linux-busylinux/meta`:
 
 ```sh
 echo 'CONFIG_BTRFS_FS=m' >> pkgs/linux-busylinux/files/busylinux.config
-# bump release= in pkgs/linux-busylinux/meta, then rebuild
 ```
 
 `pkgs/linux-busylinux/files/vm.config` adds virtio and bochs so the same kernel
@@ -402,9 +325,24 @@ boots under QEMU for testing. `VM_SUPPORT=0` drops it.
 ### tinyconfig hides things, so the build checks
 
 Starting from nothing means an option whose dependency is missing is dropped
-**silently**. The recipe therefore asserts that ~45 symbols survived
+**silently**. The recipe therefore asserts that ~40 symbols survived
 `olddefconfig` and fails the build otherwise. Three that were found this way,
 all EXPERT-gated and all off in `tinyconfig`:
+
+| Symbol | Without it |
+|---|---|
+| `CONFIG_TTY` | no virtual terminals *and* no serial console — a silent machine |
+| `CONFIG_FILE_LOCKING` | `apk` cannot lock its database: "Function not implemented" |
+| `CONFIG_MEMFD_CREATE` | Wayland buffers, PipeWire and Mesa fail in obscure ways |
+
+If the build stops with `config lost: FOO`, that option's dependency is missing
+— add it too rather than deleting the check.
+
+A symbol left out is not the same as a symbol turned off. `CONFIG_WLAN` is a
+menu bool that defaults to `y`, so omitting it let `olddefconfig` put it back
+along with every vendor submenu. Forcing it off takes an explicit
+`# CONFIG_WLAN is not set` line in the fragment, which is why a few of those
+appear there.
 
 ## Repositories
 
@@ -440,28 +378,9 @@ The following packages are no longer available from a repository:
 packages — the kernel and `/sbin/init` — and the machine will not boot again.
 
 The build therefore copies the current release of each of its own packages into
-`/var/lib/busylinux/repo` inside the image (about 8.4 MB) and puts that path
-first in `/etc/apk/repositories`. apk reads a plain filesystem path as a
-repository, so nothing has to be served. `LOCAL_REPO=0` turns this off.
-
-To fix an image built before this existed, without rebuilding:
-
-```sh
-mkdir -p /var/lib/busylinux/repo
-cp -r out/repo/x86_64 /var/lib/busylinux/repo/
-cp out/repo/busylinux.rsa.pub /etc/apk/keys/     # if it is not there yet
-sed -i '\|^#v3 |c\v3 /var/lib/busylinux/repo' /etc/apk/repositories
-```
-
-### Over the network instead
-
-The same repository is published to `out/repo` on every build, signed with a
-key generated on the first build and kept in the cache volume. Serve it and set
-`REPO_URL=` to add a second line, so machines can pull kernel updates:
-
-```sh
-cd out/repo && python3 -m http.server 8080
-```
+`/var/lib/busylinux/repo` inside the image (7.4 MB) and puts that path first in
+`/etc/apk/repositories`. apk reads a plain filesystem path as a repository, so
+nothing has to be served. `LOCAL_REPO=0` turns this off.
 
 ## Adding your own packages
 
@@ -497,14 +416,11 @@ docker run --rm -it $recipes -v "$PWD/out:/build/out" \
 
 - **The hardware paths are configured from specifications, not measured.**
   Everything in this tree is verified under QEMU — boot, install, apk, the
-  compositor. The amdgpu, r8169, mt7921e, btusb and ALC4080 drivers cannot be
-  exercised there. Boot in a VM first, then from a USB stick, before
-  installing. `lspci -k` and `lsusb -t` confirm which drivers bind.
-- **The kernel is not covered by `apk upgrade`.** Security fixes mean a
-  rebuild.
-- **Wireless needs firmware and userspace.** The kernel side is built in, but
-  `mt7921e` will not associate without `linux-firmware-mediatek`, and the base
-  image has no `wpa_supplicant`, `iw` or `bluetoothd`.
+  compositor. The amdgpu, r8169 and ALC4080 drivers cannot be exercised there.
+  Boot in a VM first, then from a USB stick, before installing. `lspci -k` and
+  `lsusb -t` confirm which drivers bind.
+- **The kernel is not covered by `apk upgrade`.** Security fixes mean a rebuild.
+- **No Wi-Fi and no Bluetooth.** Wired Ethernet only, by choice.
 - **No display manager, no OpenRC.** Session services are your responsibility.
 - **Flatpak needs its own runtime.** It is glibc-based and self-contained, so
   it works on musl — the usual way to run software Alpine does not package.
@@ -522,4 +438,5 @@ built image comes from Alpine Linux under its own licenses.
   everything above the kernel.
 - [Limine](https://limine-bootloader.org/) — the boot loader.
 - [BusyBox](https://busybox.net/) — init, the shell and most of the userland.
-- Substantial parts of the build system, installer and documentation were written with [Claude](https://claude.ai) (Anthropic).
+- Substantial parts of the build system, installer and documentation were
+  written with [Claude](https://claude.ai) (Anthropic).

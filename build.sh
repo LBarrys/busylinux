@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ARCH=${ARCH:-x86_64}
-ALPINE_MIRROR=${ALPINE_MIRROR:-https://mirror.maeen.sa/alpine}
+ALPINE_MIRROR=${ALPINE_MIRROR:-http://mirror.maeen.sa/alpine}
 ALPINE_BRANCH=${ALPINE_BRANCH:-edge}
 
 BASE_PACKAGES=${BASE_PACKAGES:-"alpine-baselayout alpine-keys apk-tools busybox

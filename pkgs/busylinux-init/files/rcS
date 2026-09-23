@@ -16,6 +16,10 @@ mount -a
 hostname -F /etc/hostname
 dmesg -n 3
 
+for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
+    [ -f "$conf" ] && sysctl -e -q -p "$conf"
+done
+
 syslogd -C512
 klogd
 

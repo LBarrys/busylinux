@@ -5,6 +5,7 @@ install -Dm755 rcK           "$1/etc/init.d/rcK"
 install -Dm644 busylinux.sh  "$1/etc/profile.d/busylinux.sh"
 install -Dm644 issue         "$1/etc/issue"
 install -Dm644 motd          "$1/etc/motd"
+install -Dm644 sysctl-hardening.conf "$1/etc/sysctl.d/10-hardening.conf"
 
 install -d "$1/etc" "$1/usr/lib"
 cat > "$1/etc/os-release" <<EOF

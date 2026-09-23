@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ARCH=${ARCH:-x86_64}
-ALPINE_MIRROR=${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}
+ALPINE_MIRROR=${ALPINE_MIRROR:-https://mirror.maeen.sa/alpine}
 ALPINE_BRANCH=${ALPINE_BRANCH:-edge}
 
 BASE_PACKAGES=${BASE_PACKAGES:-"alpine-baselayout alpine-keys apk-tools busybox
-    busybox-binsh busybox-suid mdev-conf musl-utils amd-ucode
+    busybox-binsh busybox-suid mdev-conf musl-utils amd-ucode doas
     limine-efi-x86_64 linux-busylinux busylinux-init"}
 PACKAGES=${PACKAGES:-}
 REPO_URL=${REPO_URL:-}

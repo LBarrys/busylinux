@@ -11,8 +11,7 @@ unmodified. This project owns three things:
 - **the kernel** built from `tinyconfig` plus a hardware fragment, not defconfig;
 - **the init layer** BusyBox init, one conditional `rcS`, and the `/etc` files
   that go with it;
-- **the image** disk image, UEFI ISO, initramfs, an installer, and a signed
-  apk repository for the two packages above.
+- **the image** disk image, UEFI ISO, initramfs, an installer, and a signed apk repository.
 - **the boot loader** Limine 12.9 (Alpine's), UEFI only.
 
 ## License

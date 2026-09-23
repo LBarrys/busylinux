@@ -12,7 +12,11 @@ needed, fetches and configures the kernel with this project's fragment, builds
 it, wraps it in a signed .apk, adds it to the local repository and installs it.
 
 Options:
-    --version X.Y.Z     kernel version (default: pkgs/linux-busylinux/meta)
+    --version X.Y.Z     kernel version (default: pkgs/linux-busylinux/meta).
+                        The kernel.org directory follows the major number, so
+                        7.2.7 is fetched from v7.x and 6.18.53 from v6.x.
+    --sha256 SUM        expected checksum, for a version this tree has none for
+    --config-only       configure and check the symbols, then stop
     --release N         apk release number (default: installed release + 1)
     --jobs N            parallel make jobs (default: nproc)
     --workdir DIR       build directory (default: /var/tmp/busylinux-kernel)
@@ -29,9 +33,9 @@ EOT
 
 VERSION='' RELEASE='' JOBS='' WORK=/var/tmp/busylinux-kernel
 KEY=/root/keys/local.rsa REPO=/var/lib/busylinux/repo/x86_64
-VM=1 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0
-NAME=linux-busylinux
-MIRROR=https://cdn.kernel.org/pub/linux/kernel/v6.x
+VM=1 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
+SHA256='' NAME=linux-busylinux
+MIRROR=https://cdn.kernel.org/pub/linux/kernel
 
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
@@ -45,6 +49,8 @@ while [ $# -gt 0 ]; do
         --workdir)     WORK=$2; shift 2 ;;
         --key)         KEY=$2; shift 2 ;;
         --repo)        REPO=$2; shift 2 ;;
+        --sha256)      SHA256=$2; shift 2 ;;
+        --config-only) CONFIG_ONLY=1; shift ;;
         --menuconfig)  MENUCONFIG=1; shift ;;
         --no-vm)       VM=0; shift ;;
         --no-fallback) FALLBACK=0; shift ;;
@@ -77,6 +83,7 @@ if [ -z "$RELEASE" ]; then
 fi
 PKGVER=$VERSION-r$RELEASE
 TARBALL=linux-$VERSION.tar.xz
+SERIES=v${VERSION%%.*}.x
 SRCDIR=$WORK/linux-$VERSION
 PKGDIR=$WORK/pkg-$PKGVER
 : "${JOBS:=$(nproc)}"
@@ -120,17 +127,21 @@ log "Fetching linux-$VERSION"
 if [ -s "$WORK/$TARBALL" ]; then
     info "already downloaded"
 else
-    wget -q -O "$WORK/$TARBALL.part" "$MIRROR/$TARBALL" ||
-        die "could not download $MIRROR/$TARBALL"
+    wget -q -O "$WORK/$TARBALL.part" "$MIRROR/$SERIES/$TARBALL" ||
+        die "could not download $MIRROR/$SERIES/$TARBALL"
     mv "$WORK/$TARBALL.part" "$WORK/$TARBALL"
 fi
-want=$(sed -n "s/  $TARBALL\$//p" "$RECIPE/sha256sums" | head -1)
+want=$SHA256
+if [ -z "$want" ]; then
+    want=$(sed -n "s/  $TARBALL\$//p" "$RECIPE/sha256sums" | head -1)
+fi
 if [ -n "$want" ]; then
     got=$(sha256sum "$WORK/$TARBALL" | cut -d' ' -f1)
     [ "$got" = "$want" ] || die "$TARBALL checksum $got, expected $want"
     info "checksum ok"
 else
-    info "no checksum on file for $TARBALL; not verified"
+    info "this tree has no checksum for $TARBALL, so only TLS vouches for it."
+    info "Pass --sha256 with the value from $MIRROR/$SERIES/sha256sums.asc"
 fi
 
 if [ "$KEEP" = 1 ] && [ -d "$SRCDIR" ]; then
@@ -147,6 +158,28 @@ rm -rf "$PKGDIR"
 mkdir -p "$PKGDIR"
 MAKEFLAGS="-j$JOBS"
 export MAKEFLAGS VM_SUPPORT="$VM" MENUCONFIG
+if [ "$CONFIG_ONLY" = 1 ]; then
+    ( cd "$SRCDIR"
+      fragments=busylinux.config
+      if [ "$VM" = 1 ]; then fragments="$fragments vm.config"; fi
+      make -s tinyconfig > /dev/null
+      # shellcheck disable=SC2086
+      ./scripts/kconfig/merge_config.sh -m -Q .config $fragments > /dev/null
+      make -s olddefconfig
+      sed -n '/^for symbol in /,/^done$/p' "$RECIPE/build" > /tmp/symcheck.$$
+      missing=''
+      # shellcheck disable=SC1090
+      . /tmp/symcheck.$$
+      rm -f /tmp/symcheck.$$
+      if [ -n "$missing" ]; then
+          printf '\033[1;31mconfig lost:%s\033[0m\n' "$missing"
+          exit 1
+      fi
+      printf 'kernel: %s options enabled, every asserted symbol present\n' \
+          "$(grep -c '=y$\|=m$' .config)" )
+    log "Done (configuration only)"
+    exit 0
+fi
 ( cd "$SRCDIR" && sh -e "$RECIPE/build" "$PKGDIR" "$VERSION" )
 
 if [ "$FALLBACK" = 1 ] && [ -f /boot/vmlinuz-busylinux ]; then

@@ -8,12 +8,12 @@ Alpine owns the core. musl, BusyBox, apk-tools and every library come straight
 from Alpine's repositories, so the ~36,000 packages in edge install and run
 unmodified. This project owns three things:
 
-- **the kernel** — built from `tinyconfig` plus a hardware fragment, not defconfig;
-- **the init layer** — BusyBox init, one conditional `rcS`, and the `/etc` files
+- **the kernel** built from `tinyconfig` plus a hardware fragment, not defconfig;
+- **the init layer** BusyBox init, one conditional `rcS`, and the `/etc` files
   that go with it;
-- **the image** — disk image, UEFI ISO, initramfs, an installer, and a signed
+- **the image** disk image, UEFI ISO, initramfs, an installer, and a signed
   apk repository for the two packages above.
-- **the boot loader** ... Limine 12.9 (Alpine's), UEFI only.
+- **the boot loader** Limine 12.9 (Alpine's), UEFI only.
 
 ## License
 
@@ -24,9 +24,9 @@ built image comes from Alpine Linux under its own licenses.
 
 ## Acknowledgements
 
-- [Alpine Linux](https://alpinelinux.org/) — musl, BusyBox, apk-tools and
+- [Alpine Linux](https://alpinelinux.org/) musl, BusyBox, apk-tools and
   everything above the kernel.
-- [Limine](https://limine-bootloader.org/) — the boot loader.
-- [BusyBox](https://busybox.net/) — init, the shell and most of the userland.
+- [Limine](https://limine-bootloader.org/) the boot loader.
+- [BusyBox](https://busybox.net/) init, the shell and most of the userland.
 - Substantial parts of the build system, installer and documentation were
   written with [Claude](https://claude.ai) (Anthropic).

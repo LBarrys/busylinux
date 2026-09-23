@@ -222,7 +222,7 @@ if [ -n "$USER_NAME" ]; then
     log "Creating $USER_NAME"
     chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
     chroot "$MNT" /bin/busybox addgroup -S seat 2>/dev/null || :
-    for g in video input audio seat; do
+    for g in video input audio seat wheel; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
     if [ -t 0 ]; then chroot "$MNT" /bin/busybox passwd "$USER_NAME"; fi

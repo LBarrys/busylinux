@@ -68,8 +68,6 @@ qemu-system-x86_64 -m 2G -nographic \
   -nic user,model=virtio-net-pci
 ```
 
-Log in as `root` with no password.
-
 ## Installing on real hardware
 
 `install.sh` does the whole thing. Run it as root from an Alpine live USB — any
@@ -98,11 +96,6 @@ writes:
 | `--hostname NAME` | default `busylinux` |
 | `--no-nvram` | removable path only, do not touch the firmware boot menu |
 | `--yes` | skip the confirmation |
-
-`doas` is in the base image and `busylinux-init` ships `/etc/doas.d/wheel.conf`
-(`permit persist :wheel`), so the user created by `--user` can use it at once.
-Alpine builds `doas` with `--with-doas-confdir`, which means `/etc/doas.conf` is
-never read — rules belong in `/etc/doas.d/*.conf`.
 
 ## What rcS starts
 
@@ -152,6 +145,7 @@ directory, in `/usr/local/share/busylinux` and in `/root/busylinux`, and
 | `--no-fallback` | do not keep the running kernel as `vmlinuz-previous` |
 | `--no-install` | build and package only |
 | `--keep-source` | reuse the build tree instead of re-extracting |
+| `--keep-tools` | leave the toolchain installed afterwards |
 | `--yes` | skip the confirmation |
 
 ### Moving to a different kernel version

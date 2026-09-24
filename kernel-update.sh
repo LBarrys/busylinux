@@ -28,6 +28,8 @@ Options:
     --no-fallback       do not keep the running kernel as vmlinuz-previous
     --no-install        build and package only
     --keep-source       reuse an existing build tree instead of extracting
+    --keep-tools        leave the toolchain installed; by default every package
+                        this run installed is removed again when it finishes
     --yes               do not ask for confirmation
 EOT
 }
@@ -35,12 +37,34 @@ EOT
 VERSION='' RELEASE='' JOBS='' WORK=/var/tmp/busylinux-kernel
 KEY=/root/keys/local.rsa REPO=/var/lib/busylinux/repo/x86_64
 VM=1 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
+KEEP_TOOLS=0 ADDED=''
 SHA256='' CHECKOUT='' NAME=linux-busylinux
 MIRROR=https://cdn.kernel.org/pub/linux/kernel
 
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 info() { printf '\033[1;34m  > %s\033[0m\n' "$*"; }
+
+remove_tools() {
+    [ -n "$ADDED" ] || return 0
+    if [ "$KEEP_TOOLS" = 1 ]; then
+        info "the toolchain stays installed (--keep-tools)"
+        return 0
+    fi
+    log "Removing the toolchain this run installed"
+    # shellcheck disable=SC2086
+    if apk del $ADDED > /dev/null 2>&1; then
+        info "removed:$ADDED"
+        info "and everything they pulled in"
+        return 0
+    fi
+    kept=''
+    for t in $ADDED; do
+        apk del "$t" > /dev/null 2>&1 || kept="$kept $t"
+    done
+    info "removed what could go"
+    [ -z "$kept" ] || info "kept:$kept -- something else depends on them"
+}
 
 while [ $# -gt 0 ]; do
     case $1 in
@@ -58,6 +82,7 @@ while [ $# -gt 0 ]; do
         --no-fallback) FALLBACK=0; shift ;;
         --no-install)  INSTALL=0; shift ;;
         --keep-source) KEEP=1; shift ;;
+        --keep-tools)  KEEP_TOOLS=1; shift ;;
         --yes|-y)      ASSUME_YES=1; shift ;;
         -h|--help)     usage; exit 0 ;;
         *)             die "unknown option: $1" ;;
@@ -131,16 +156,20 @@ log "Checking the toolchain"
 TOOLS="build-base bash bc bison flex perl openssl openssl-dev elfutils-dev
        linux-headers diffutils findutils xz gzip cpio zstd"
 if [ "$MENUCONFIG" = 1 ]; then TOOLS="$TOOLS ncurses-dev"; fi
-missing=''
-for t in gcc make bc bison flex perl openssl xz cpio; do
-    command -v "$t" > /dev/null 2>&1 || missing="$missing $t"
+for t in $TOOLS; do
+    apk list --installed "$t" 2>/dev/null | grep -q "^$t-[0-9]" || ADDED="$ADDED $t"
 done
-if [ -n "$missing" ]; then
-    info "missing:$missing"
+if [ -n "$ADDED" ]; then
+    info "installing:$ADDED"
     # shellcheck disable=SC2086
-    apk add $TOOLS
+    apk add $ADDED
+    if [ "$KEEP_TOOLS" = 1 ]; then
+        info "they will stay installed (--keep-tools)"
+    else
+        info "they will be removed again when this run finishes"
+    fi
 else
-    info "already present"
+    info "already present; nothing to install or remove"
 fi
 
 mkdir -p "$WORK"
@@ -188,6 +217,7 @@ MAKEFLAGS="-j$JOBS"
 export MAKEFLAGS VM_SUPPORT="$VM" MENUCONFIG
 if [ "$CONFIG_ONLY" = 1 ]; then
     ( cd "$SRCDIR" && CONFIG_ONLY=1 sh -e "$RECIPE/build" "$PKGDIR" "$VERSION" )
+    remove_tools
     log "Done (configuration only)"
     exit 0
 fi
@@ -232,6 +262,7 @@ apk mkndx --output "$REPO/Packages.adb" --sign-key "$KEY" "$REPO"/*.apk > /dev/n
 info "$(du -h "$REPO/$NAME-$PKGVER.apk" | cut -f1) in $REPO"
 
 if [ "$INSTALL" != 1 ]; then
+    remove_tools
     log "Done (not installed)"
     info "install it with: apk update && apk upgrade $NAME"
     exit 0
@@ -240,6 +271,8 @@ fi
 log "Installing"
 apk update > /dev/null
 apk upgrade "$NAME"
+
+remove_tools
 
 log "Done"
 cat <<EOF

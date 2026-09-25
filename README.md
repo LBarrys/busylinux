@@ -68,6 +68,8 @@ qemu-system-x86_64 -m 2G -nographic \
   -nic user,model=virtio-net-pci
 ```
 
+Log in as `root` with no password.
+
 ## Installing on real hardware
 
 `install.sh` does the whole thing. Run it as root from an Alpine live USB — any
@@ -105,13 +107,42 @@ base and a full desktop:
 | Step | Condition |
 |---|---|
 | `/proc`, `/sys`, `/dev`, `/run`, devpts, shm, `/run/user` | always |
+| `fsck.ext4 -p` on root, then remount rw | if root was mounted `ro` (the installer's cmdline) |
 | `sysctl -p` for `/etc/sysctl.d/*.conf` | always |
-| `syslogd -C512` and `klogd` | always (read with `logread`) |
 | `udevd` + `udevadm trigger` | if eudev is installed, otherwise `mdev -d` |
 | modules from `/etc/modules-load.d/*.conf` | if any |
-| `seatd -g seat` (or `-g video`) | if seatd is installed |
-| `dbus-daemon --system` | if dbus is installed |
-| `udhcpc` on every Ethernet interface | always |
+| `nft -f /etc/nftables.conf` | if nftables is installed |
+| `fstrim` on every ext4 mount, 60 s after boot, in the background | if `fstrim` exists |
+
+Everything long-running moved out of `rcS` and into supervision.
+
+## Services
+
+Besides the gettys, `inittab` respawns one thing:
+
+```
+::respawn:/usr/sbin/busylinux-supervise
+```
+
+a guard around `runsvdir /etc/service`. BusyBox init does **not** throttle
+respawns — its own manual says so — so pointing it straight at a binary that
+might be missing would spin the CPU. The guard sleeps instead.
+
+| Service | Runs |
+|---|---|
+| `syslogd` | `syslogd -n -O /var/log/messages -s 2048 -b 4` |
+| `klogd` | the kernel ring buffer into syslog |
+| `crond` | `crond -f -c /etc/crontabs` |
+| `ntpd` | `ntpd -n -p pool.ntp.org -p time.cloudflare.com` |
+| `seatd` | `-g seat`, or `-g video` if that group does not exist |
+| `dbus` | `dbus-daemon --system --nofork` |
+| `dhcp` | `udhcpc -f` on the first Ethernet interface |
+
+Each is a directory under `/etc/service` containing a `run` script; runit
+restarts whatever exits, a second apart. All but `syslogd` and `klogd` also
+carry `log/run`, which pipes the service's own output through `logger` under its
+name — without it runsv sends that output to its own stdout, which ends up on
+the console and in no file at all.
 
 ## Upgrading the kernel
 
@@ -124,6 +155,11 @@ git clone https://github.com/LBarrys/busylinux.git
 cd busylinux
 ./kernel-update.sh
 ```
+
+Every toolchain package the run installs is removed again when it finishes, so
+a kernel build leaves nothing behind but the kernel; anything that was already
+installed is left alone. `--keep-tools` keeps them, which is what you want
+alongside `--keep-source` when rebuilding.
 
 The script is not standalone: it drives `pkgs/linux-busylinux/build` and reads
 `meta` and `sha256sums` next to it, so copying it out of the tree and running it

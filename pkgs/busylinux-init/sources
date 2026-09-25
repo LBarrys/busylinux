@@ -17,3 +17,4 @@ files/sv-ntpd
 files/sv-seatd
 files/sv-dbus
 files/sv-dhcp
+files/svlog

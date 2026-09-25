@@ -16,6 +16,10 @@ for s in syslogd klogd crond ntpd seatd dbus dhcp; do
     install -Dm755 "sv-$s" "$1/etc/service/$s/run"
 done
 
+for s in crond ntpd seatd dbus dhcp; do
+    install -Dm755 svlog "$1/etc/service/$s/log/run"
+done
+
 install -d "$1/etc" "$1/usr/lib"
 cat > "$1/etc/os-release" <<EOF
 NAME="BusyLinux"

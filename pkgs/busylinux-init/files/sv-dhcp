@@ -1,9 +1,10 @@
 #!/bin/sh
+exec 2>&1
 for dev in /sys/class/net/*; do
     name=${dev##*/}
     [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue
     ip link set "$name" up
     # shellcheck disable=SC2093
-    exec udhcpc -f -i "$name" -S
+    exec udhcpc -f -i "$name"
 done
 exec sleep 10

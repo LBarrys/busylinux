@@ -1,0 +1,5 @@
+#!/bin/sh
+awk '$3=="ext4" {print $2}' /proc/mounts |
+while read -r mp; do
+    fstrim "$mp" > /dev/null 2>&1 || :
+done

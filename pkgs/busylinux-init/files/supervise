@@ -1,0 +1,4 @@
+#!/bin/sh
+command -v runsvdir > /dev/null 2>&1 || { sleep 3600; exit 0; }
+[ -d /etc/service ] || { sleep 3600; exit 0; }
+exec runsvdir /etc/service

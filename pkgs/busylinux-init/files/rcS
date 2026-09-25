@@ -38,9 +38,6 @@ for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
     [ -f "$conf" ] && sysctl -e -q -p "$conf"
 done
 
-syslogd -C512
-klogd
-
 if [ -x /sbin/udevd ]; then
     udevd -d
     udevadm trigger --type=subsystems --action=add
@@ -58,30 +55,12 @@ for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
     done < "$conf"
 done
 
-if [ -x /usr/bin/seatd ] && ! pgrep -x seatd > /dev/null 2>&1; then
-    seat_group=video
-    getent group seat > /dev/null 2>&1 && seat_group=seat
-    seatd -g "$seat_group" > /dev/null 2>&1 &
-fi
-
-if [ -x /usr/bin/dbus-daemon ]; then
-    mkdir -p /run/dbus
-    dbus-uuidgen --ensure > /dev/null 2>&1 || :
-    dbus-daemon --system --fork > /dev/null 2>&1 || :
+if command -v nft > /dev/null 2>&1 && [ -f /etc/nftables.conf ]; then
+    nft -f /etc/nftables.conf || echo "rcS: /etc/nftables.conf did not load"
 fi
 
 ip link set lo up
-for dev in /sys/class/net/*; do
-    name=${dev##*/}
-    [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue
-    ip link set "$name" up
-    udhcpc -i "$name" -b -S -p "/run/udhcpc.$name.pid" > /dev/null 2>&1 || :
-done
 
 if command -v fstrim > /dev/null 2>&1; then
-    (
-        sleep 60
-        awk '$3=="ext4" {print $2}' /proc/mounts |
-        while read -r mp; do fstrim "$mp" > /dev/null 2>&1 || :; done
-    ) &
+    (sleep 60; /usr/sbin/busylinux-fstrim) &
 fi

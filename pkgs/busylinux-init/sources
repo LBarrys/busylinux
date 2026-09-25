@@ -6,3 +6,14 @@ files/issue
 files/motd
 files/sysctl-hardening.conf
 files/doas.conf
+files/supervise
+files/fstrim-all
+files/nftables.conf
+files/crontab-root
+files/sv-syslogd
+files/sv-klogd
+files/sv-crond
+files/sv-ntpd
+files/sv-seatd
+files/sv-dbus
+files/sv-dhcp

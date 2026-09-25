@@ -6,7 +6,7 @@ ALPINE_MIRROR=${ALPINE_MIRROR:-https://mirror.maeen.sa/alpine}
 ALPINE_BRANCH=${ALPINE_BRANCH:-edge}
 
 BASE_PACKAGES=${BASE_PACKAGES:-"alpine-baselayout alpine-keys apk-tools busybox
-    busybox-binsh busybox-suid doas mdev-conf musl-utils amd-ucode
+    busybox-binsh busybox-suid doas e2fsprogs mdev-conf musl-utils amd-ucode
     limine-efi-x86_64 linux-busylinux busylinux-init"}
 PACKAGES=${PACKAGES:-}
 REPO_URL=${REPO_URL:-}

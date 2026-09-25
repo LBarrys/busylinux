@@ -10,6 +10,24 @@ mountpoint -q /dev/pts || mount -t devpts -o gid=5,mode=620 devpts /dev/pts
 mountpoint -q /dev/shm || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm
 mkdir -p /run/user && chmod 1777 /run/user
 
+root_dev=$(awk '$2=="/" {print $1; exit}' /proc/mounts)
+root_fs=$(awk '$2=="/" {print $3; exit}' /proc/mounts)
+root_opts=$(awk '$2=="/" {print $4; exit}' /proc/mounts)
+case ",$root_opts," in
+    *,ro,*)
+        if [ "$root_fs" = ext4 ] && command -v fsck.ext4 > /dev/null 2>&1; then
+            echo "Checking $root_dev"
+            fsck.ext4 -p "$root_dev"
+            case $? in
+                0|1) ;;
+                2)   echo "Repaired; rebooting"; sleep 2; reboot -f ;;
+                *)   echo "fsck.ext4 could not repair $root_dev without help."
+                     echo "Run 'fsck.ext4 $root_dev', then 'exit' to carry on."
+                     setsid cttyhack sh ;;
+            esac
+        fi ;;
+esac
+
 mount -o remount,rw /
 mount -a
 
@@ -59,3 +77,11 @@ for dev in /sys/class/net/*; do
     ip link set "$name" up
     udhcpc -i "$name" -b -S -p "/run/udhcpc.$name.pid" > /dev/null 2>&1 || :
 done
+
+if command -v fstrim > /dev/null 2>&1; then
+    (
+        sleep 60
+        awk '$3=="ext4" {print $2}' /proc/mounts |
+        while read -r mp; do fstrim "$mp" > /dev/null 2>&1 || :; done
+    ) &
+fi

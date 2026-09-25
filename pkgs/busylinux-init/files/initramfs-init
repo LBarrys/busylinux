@@ -11,15 +11,18 @@ rescue() {
     setsid cttyhack sh
 }
 
-root='' fstype='' flags=rw
+root='' fstype='' mode=rw extra=''
 for arg in $(cat /proc/cmdline); do
     case $arg in
         root=*)       root=${arg#root=} ;;
         rootfstype=*) fstype=${arg#rootfstype=} ;;
-        rootflags=*)  flags=rw,${arg#rootflags=} ;;
+        rootflags=*)  extra=,${arg#rootflags=} ;;
+        ro)           mode=ro ;;
+        rw)           mode=rw ;;
         rescue)       rescue "Rescue shell requested (kernel parameter 'rescue')." ;;
     esac
 done
+flags=$mode$extra
 
 while :; do
     [ -n "$root" ] || { rescue "No root= parameter given."; continue; }

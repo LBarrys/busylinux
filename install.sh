@@ -189,13 +189,13 @@ serial: yes
 /BusyLinux
     protocol: linux
     path: boot():/$kernel
-    cmdline: root=LABEL=$ROOT_LABEL rw
+    cmdline: root=LABEL=$ROOT_LABEL ro
 $ucode    module_path: boot():/initramfs.cpio.gz
 
 /BusyLinux (serial console on ttyS0)
     protocol: linux
     path: boot():/$kernel
-    cmdline: root=LABEL=$ROOT_LABEL rw console=tty0 console=ttyS0,115200
+    cmdline: root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200
 $ucode    module_path: boot():/initramfs.cpio.gz
 
 /Rescue shell (initramfs only)

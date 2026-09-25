@@ -233,7 +233,7 @@ if [ "$FALLBACK" = 1 ] && [ -f /boot/vmlinuz-busylinux ]; then
             ucode='    module_path: boot():/amd-ucode.img
 '
         fi
-        printf '\n/BusyLinux (previous kernel)\n    protocol: linux\n    path: boot():/vmlinuz-previous\n    cmdline: root=LABEL=BUSYLINUX_ROOT rw\n%s    module_path: boot():/initramfs.cpio.gz\n' "$ucode" >> "$conf"
+        printf '\n/BusyLinux (previous kernel)\n    protocol: linux\n    path: boot():/vmlinuz-previous\n    cmdline: root=LABEL=BUSYLINUX_ROOT ro\n%s    module_path: boot():/initramfs.cpio.gz\n' "$ucode" >> "$conf"
         info "added a 'previous kernel' entry to limine.conf"
     fi
     info "/boot/vmlinuz-previous saved"

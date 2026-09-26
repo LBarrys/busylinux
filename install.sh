@@ -216,9 +216,8 @@ if [ -n "$KEYFILE" ]; then
 fi
 
 cat > "$MNT/etc/fstab" <<EOF
-LABEL=$ROOT_LABEL  /             ext4     rw,relatime                       0      1
-LABEL=$ESP_LABEL       /boot         vfat     rw,noatime,fmask=0077,dmask=0077  0      2
-/dev/cdrom              /media/cdrom  iso9660  noauto,ro                         0      0
+LABEL=$ROOT_LABEL  /      ext4  rw,relatime                       0  1
+LABEL=$ESP_LABEL       /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0  2
 EOF
 
 log "Installing Limine"
@@ -321,6 +320,7 @@ cat <<EOF
 
   First things to do on the new system:
     apk update
-    apk add linux-firmware-amdgpu linux-firmware-mediatek
+    apk add linux-firmware-amdgpu
+    echo amdgpu > /etc/modules-load.d/amdgpu.conf
 
 EOF

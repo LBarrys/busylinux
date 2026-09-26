@@ -6,9 +6,7 @@ files/issue
 files/sysctl-hardening.conf
 files/doas.conf
 files/supervise
-files/fstrim-all
 files/nftables.conf
-files/crontab-root
 files/acpi-poweroff
 files/sv-syslogd
 files/sv-klogd

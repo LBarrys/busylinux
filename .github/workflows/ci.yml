@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -12,14 +13,14 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: shellcheck
         run: |
           shellcheck --version
           shellcheck -S warning build.sh install.sh kernel-update.sh tests/*.sh pkgs/*/build
           f=pkgs/busylinux-init/files
-          shellcheck -S warning -s sh "$f"/rcS "$f"/rcK "$f"/supervise "$f"/fstrim-all \
+          shellcheck -S warning -s sh "$f"/rcS "$f"/rcK "$f"/supervise \
             "$f"/svlog "$f"/sv-* "$f"/acpi-poweroff "$f"/initramfs-init "$f"/busylinux.sh
 
       - name: nftables ruleset
@@ -33,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Package cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: cache
           key: build-${{ hashFiles('Dockerfile', 'build.sh', 'pkgs/**') }}
@@ -73,7 +74,7 @@ jobs:
 
       - name: Keep the console log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: boot-test-log
           path: out/boot-test.log

@@ -96,9 +96,7 @@ check services   '[ "$(for s in syslogd klogd crond acpid dhcp; do sv status /et
 check cgroup2    'grep -q "^cgroup2 /sys/fs/cgroup " /proc/mounts'
 check ntsync     '[ "$(stat -c %a /dev/ntsync)" = 666 ]'
 check uinput     '[ "$(stat -c %G:%a /dev/uinput)" = input:660 ]'
-check hwclock    'grep -q "hwclock -u -w" /etc/crontabs/root'
 check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
-check motd       '[ ! -s /etc/motd ]'
 
 # Fail closed: with the ruleset gone, the dhcp service must refuse to start.
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'

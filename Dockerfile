@@ -8,7 +8,7 @@ RUN echo "Server = https://archive.archlinux.org/repos/${ARCH_SNAPSHOT}/\$repo/o
         > /etc/pacman.d/mirrorlist \
     && pacman -Syu --noconfirm --needed \
         base-devel bc cpio curl e2fsprogs git kmod libelf \
-        libisoburn meson ncurses ninja openssl perl xz zlib zstd \
+        meson ncurses ninja openssl perl xz zlib zstd \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY build.sh /usr/local/bin/build.sh

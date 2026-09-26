@@ -4,6 +4,7 @@ killall5 -15
 sleep 1
 killall5 -9
 swapoff -a 2>/dev/null
+hwclock -u -w 2>/dev/null
 sync
 mount -o remount,ro / 2>/dev/null
 umount -a -r 2>/dev/null

@@ -18,7 +18,13 @@ Options:
     --esp-size SIZE     EFI system partition size (default 1G)
     --root-size SIZE    root partition size (default: the rest of the disk)
     --hostname NAME     default busylinux
-    --user NAME         create this user in video/input/audio/seat/wheel,
+    --timezone ZONE     e.g. Europe/Berlin (default UTC); needs tzdata on the
+                        system running this script
+    --keymap LAYOUT/VARIANT
+                        console keymap, e.g. de/de-latin1 (default: the
+                        kernel's US map); needs kbd-bkeymaps on the system
+                        running this script
+    --user NAME         create this user in video/input/audio/seat/wheel/kvm,
                         set a password
     --no-nvram          do not add a UEFI boot entry
     --yes               do not ask for confirmation
@@ -26,6 +32,7 @@ EOT
 }
 
 DISK='' DIR='' ESP_SIZE=1G ROOT_SIZE='' HOSTNAME=busylinux USER_NAME=''
+TIMEZONE='' KEYMAP=''
 NVRAM=1 ASSUME_YES=0
 ROOT_LABEL=BUSYLINUX_ROOT
 ESP_LABEL=BUSYLINUX
@@ -50,6 +57,8 @@ while [ $# -gt 0 ]; do
         --esp-size)  ESP_SIZE=$2; shift 2 ;;
         --root-size) ROOT_SIZE=$2; shift 2 ;;
         --hostname)  HOSTNAME=$2; shift 2 ;;
+        --timezone)  TIMEZONE=$2; shift 2 ;;
+        --keymap)    KEYMAP=$2; shift 2 ;;
         --user)      USER_NAME=$2; shift 2 ;;
         --no-nvram)  NVRAM=0; shift ;;
         --yes|-y)    ASSUME_YES=1; shift ;;
@@ -61,6 +70,29 @@ done
 [ "$(id -u)" = 0 ] || die "run this as root"
 [ -n "$DISK" ]     || die "no --disk given (try --help)"
 [ -b "$DISK" ]     || die "$DISK is not a block device"
+
+case $HOSTNAME in
+    ''|[.-]*|*[!A-Za-z0-9.-]*|*.) die "--hostname: letters, digits, '-' and '.' only" ;;
+esac
+
+ZONEFILE=''
+case $TIMEZONE in
+    ''|UTC) ;;
+    /*|*..*|*[!A-Za-z0-9_+/-]*) die "--timezone: '$TIMEZONE' is not a zone name" ;;
+    *)  ZONEFILE=/usr/share/zoneinfo/$TIMEZONE
+        [ -f "$ZONEFILE" ] ||
+            die "$ZONEFILE is missing: unknown zone, or tzdata is not installed here (apk add tzdata)" ;;
+esac
+
+KEYFILE=''
+case $KEYMAP in
+    '') ;;
+    /*|*/|*/*/*|*..*|*[!A-Za-z0-9_/-]*) die "--keymap: expected LAYOUT/VARIANT, e.g. de/de-latin1" ;;
+    */*) KEYFILE=/usr/share/bkeymaps/$KEYMAP.bmap.gz
+        [ -f "$KEYFILE" ] ||
+            die "$KEYFILE is missing: unknown keymap, or kbd-bkeymaps is not installed here (apk add kbd-bkeymaps)" ;;
+    *)  die "--keymap: expected LAYOUT/VARIANT, e.g. de/de-latin1" ;;
+esac
 
 if [ -z "$DIR" ]; then
     for d in ./out "$(dirname "$0")/out" "$(dirname "$0")"; do
@@ -159,6 +191,30 @@ info "$(du -sh "$MNT" | cut -f1) on $ROOT, $(du -sh "$MNT/boot" | cut -f1) on $E
 
 log "Configuring"
 printf '%s\n' "$HOSTNAME" > "$MNT/etc/hostname"
+host_names=$HOSTNAME
+[ "${HOSTNAME%%.*}" = "$HOSTNAME" ] || host_names="$HOSTNAME ${HOSTNAME%%.*}"
+cat > "$MNT/etc/hosts" <<EOF
+127.0.0.1	localhost localhost.localdomain
+::1		localhost localhost.localdomain
+127.0.1.1	$host_names
+EOF
+info "hostname $HOSTNAME"
+
+rm -f "$MNT/etc/localtime"
+if [ -n "$ZONEFILE" ]; then
+    cp "$ZONEFILE" "$MNT/etc/localtime"
+    info "timezone $TIMEZONE"
+else
+    info "timezone UTC"
+fi
+
+if [ -n "$KEYFILE" ]; then
+    rm -rf "$MNT/etc/keymap"
+    mkdir -p "$MNT/etc/keymap"
+    cp "$KEYFILE" "$MNT/etc/keymap/"
+    info "keymap $KEYMAP"
+fi
+
 cat > "$MNT/etc/fstab" <<EOF
 LABEL=$ROOT_LABEL  /             ext4     rw,relatime                       0      1
 LABEL=$ESP_LABEL       /boot         vfat     rw,noatime,fmask=0077,dmask=0077  0      2
@@ -222,10 +278,10 @@ fi
 if [ -n "$USER_NAME" ]; then
     log "Creating $USER_NAME"
     chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
-    for g in seat wheel; do
+    for g in seat wheel kvm; do
         chroot "$MNT" /bin/busybox addgroup -S "$g" 2>/dev/null || :
     done
-    for g in video input audio seat wheel; do
+    for g in video input audio seat wheel kvm; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
     if [ -f "$MNT/etc/doas.d/wheel.conf" ]; then

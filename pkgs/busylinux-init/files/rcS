@@ -9,6 +9,15 @@ mkdir -p /dev/pts /dev/shm /run/lock
 mountpoint -q /dev/pts || mount -t devpts -o gid=5,mode=620 devpts /dev/pts
 mountpoint -q /dev/shm || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm
 mkdir -p /run/user && chmod 1777 /run/user
+if [ -d /sys/firmware/efi/efivars ] && ! mountpoint -q /sys/firmware/efi/efivars; then
+    mount -t efivarfs -o nosuid,nodev,noexec efivarfs /sys/firmware/efi/efivars
+fi
+if ! mountpoint -q /sys/fs/cgroup; then
+    mount -t cgroup2 -o nosuid,nodev,noexec,nsdelegate cgroup2 /sys/fs/cgroup
+    for c in $(cat /sys/fs/cgroup/cgroup.controllers); do
+        echo "+$c" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || :
+    done
+fi
 
 root_dev=$(awk '$2=="/" {print $1; exit}' /proc/mounts)
 root_fs=$(awk '$2=="/" {print $3; exit}' /proc/mounts)
@@ -34,6 +43,11 @@ mount -a
 hostname -F /etc/hostname
 dmesg -n 3
 
+for keymap in /etc/keymap/*.bmap.gz; do
+    [ -f "$keymap" ] && zcat "$keymap" | loadkmap
+    break
+done
+
 for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
     [ -f "$conf" ] && sysctl -e -q -p "$conf"
 done
@@ -55,8 +69,21 @@ for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
     done < "$conf"
 done
 
-if command -v nft > /dev/null 2>&1 && [ -f /etc/nftables.conf ]; then
-    nft -f /etc/nftables.conf || echo "rcS: /etc/nftables.conf did not load"
+# The device manager applies its own table to every node it finds; give these
+# the modes their users need: KVM for the kvm group, Wine's NT sync objects
+# for everyone (the kernel's own choice), uinput for the input group (Steam).
+if [ -c /dev/kvm ]; then chgrp kvm /dev/kvm && chmod 660 /dev/kvm; fi
+if [ -c /dev/ntsync ]; then chmod 666 /dev/ntsync; fi
+if [ -c /dev/uinput ]; then chgrp input /dev/uinput && chmod 660 /dev/uinput; fi
+
+# The firewall fails closed: /etc/service/dhcp brings no interface up while
+# /etc/nftables.conf exists and no ruleset is loaded.
+if [ -f /etc/nftables.conf ]; then
+    if ! command -v nft > /dev/null 2>&1; then
+        echo "rcS: nft is missing; the network stays down"
+    elif ! nft -f /etc/nftables.conf; then
+        echo "rcS: /etc/nftables.conf did not load; the network stays down"
+    fi
 fi
 
 ip link set lo up

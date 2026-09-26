@@ -3,13 +3,13 @@ files/rcS
 files/rcK
 files/busylinux.sh
 files/issue
-files/motd
 files/sysctl-hardening.conf
 files/doas.conf
 files/supervise
 files/fstrim-all
 files/nftables.conf
 files/crontab-root
+files/acpi-poweroff
 files/sv-syslogd
 files/sv-klogd
 files/sv-crond
@@ -17,4 +17,5 @@ files/sv-ntpd
 files/sv-seatd
 files/sv-dbus
 files/sv-dhcp
+files/sv-acpid
 files/svlog

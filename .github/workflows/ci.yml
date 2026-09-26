@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck -S warning build.sh install.sh kernel-update.sh tests/*.sh pkgs/*/build
+          f=pkgs/busylinux-init/files
+          shellcheck -S warning -s sh "$f"/rcS "$f"/rcK "$f"/supervise "$f"/fstrim-all \
+            "$f"/svlog "$f"/sv-* "$f"/acpi-poweroff "$f"/initramfs-init "$f"/busylinux.sh
+
+      - name: nftables ruleset
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nftables
+          sudo nft -c -f pkgs/busylinux-init/files/nftables.conf
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package cache
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: build-${{ hashFiles('Dockerfile', 'build.sh', 'pkgs/**') }}
+
+      - name: Build the builder image
+        run: docker build -t busylinux-builder .
+
+      - name: Build BusyLinux
+        run: |
+          mkdir -p out cache
+          docker run --rm \
+            -v "$PWD/out:/build/out" -v "$PWD/cache:/build/cache" \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+            -e ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine \
+            busylinux-builder
+          sudo chown -R "$(id -u):$(id -g)" cache
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86
+
+      - name: Let the runner use KVM
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+              sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+
+      - name: Boot test
+        run: tests/boot-test.sh out
+
+      - name: Keep the console log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-test-log
+          path: out/boot-test.log
+          if-no-files-found: ignore

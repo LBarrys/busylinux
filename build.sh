@@ -42,6 +42,7 @@ load_meta() {
     release=0
     desc='' url='' license='' depends=''
     subpackages='' options='' provides='' replaces=''
+    # shellcheck source=/dev/null
     . "$PKGS/$1/meta"
     [ -n "${version:-}" ] || die "$1: meta sets no version"
     desc=${desc:-$1}
@@ -314,6 +315,8 @@ $ALPINE_MIRROR/$ALPINE_BRANCH/community
 @testing $ALPINE_MIRROR/$ALPINE_BRANCH/testing
 EOF
     echo busylinux > "$root/etc/hostname"
+    printf '127.0.0.1\tlocalhost localhost.localdomain\n::1\t\tlocalhost localhost.localdomain\n127.0.1.1\tbusylinux\n' \
+        > "$root/etc/hosts"
     sed -i 's/^root:[^:]*:/root::/' "$root/etc/shadow"
 }
 

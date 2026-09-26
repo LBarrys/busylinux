@@ -1,0 +1,5 @@
+#!/bin/sh
+exec 2>&1
+# The power button. acpid reads it from /dev/input and runs
+# /etc/acpi/PWRF/00000080; it logs to syslog, so its own log file is dropped.
+exec acpid -f -c /etc/acpi -l /dev/null

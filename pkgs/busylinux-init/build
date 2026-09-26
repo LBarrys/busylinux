@@ -4,15 +4,16 @@ install -Dm755 rcS           "$1/etc/init.d/rcS"
 install -Dm755 rcK           "$1/etc/init.d/rcK"
 install -Dm644 busylinux.sh  "$1/etc/profile.d/busylinux.sh"
 install -Dm644 issue         "$1/etc/issue"
-install -Dm644 motd          "$1/etc/motd"
+install -Dm644 /dev/null     "$1/etc/motd"
 install -Dm644 sysctl-hardening.conf "$1/etc/sysctl.d/10-hardening.conf"
 install -Dm640 doas.conf     "$1/etc/doas.d/wheel.conf"
 install -Dm755 supervise     "$1/usr/sbin/busylinux-supervise"
 install -Dm755 fstrim-all    "$1/usr/sbin/busylinux-fstrim"
 install -Dm644 nftables.conf "$1/etc/nftables.conf"
 install -Dm600 crontab-root  "$1/etc/crontabs/root"
+install -Dm755 acpi-poweroff "$1/etc/acpi/PWRF/00000080"
 
-for s in syslogd klogd crond ntpd seatd dbus dhcp; do
+for s in syslogd klogd crond ntpd seatd dbus dhcp acpid; do
     install -Dm755 "sv-$s" "$1/etc/service/$s/run"
 done
 

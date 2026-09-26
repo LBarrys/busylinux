@@ -1,5 +1,12 @@
 #!/bin/sh
 exec 2>&1
+# Fail closed: while /etc/nftables.conf exists but no ruleset is loaded, no
+# interface comes up. Once 'nft -f /etc/nftables.conf' succeeds, this carries
+# on by itself at the next check.
+if [ -f /etc/nftables.conf ] && [ -z "$(nft list ruleset 2>/dev/null)" ]; then
+    echo "no firewall ruleset is loaded; not bringing the network up"
+    exec sleep 30
+fi
 for dev in /sys/class/net/*; do
     name=${dev##*/}
     [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue

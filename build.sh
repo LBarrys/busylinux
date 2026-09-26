@@ -349,7 +349,7 @@ main() {
     fi
 
     log "Preparing"
-    rm -rf "$ROOTFS" "$BLD/initramfs" "$BLD/iso"
+    rm -rf "$ROOTFS" "$BLD/initramfs"
     mkdir -p "$ROOTFS"
     build_host_apk
     setup_key
@@ -393,43 +393,6 @@ main() {
 
     log "Creating rootfs.tar.gz"
     tar -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
-
-    log "Creating the boot ISO (UEFI)"
-    local iso=$BLD/iso limcd=$BLD/limine-cd
-    mkdir -p "$iso/EFI/BOOT"
-    cp "$OUT/vmlinuz" "$OUT/initramfs.cpio.gz" "$iso/"
-    local ucode=''
-    if [ -f "$OUT/amd-ucode.img" ]; then
-        cp "$OUT/amd-ucode.img" "$iso/"
-        ucode="    module_path: boot():/amd-ucode.img"$'\n'
-    fi
-    cp "$ROOTFS/usr/share/limine/BOOTX64.EFI" "$iso/EFI/BOOT/"
-    rm -rf "$limcd"
-    apk_root "$limcd" add --initdb limine-efi-cd > /dev/null
-    cat > "$iso/EFI/BOOT/limine.conf" <<EOF
-timeout: 3
-default_entry: 1
-serial: yes
-
-/BusyLinux (root=LABEL=$ROOT_LABEL)
-    protocol: linux
-    path: boot():/vmlinuz
-    cmdline: root=LABEL=$ROOT_LABEL rw console=tty0 console=ttyS0,115200
-$ucode    module_path: boot():/initramfs.cpio.gz
-
-/Rescue shell (initramfs only)
-    protocol: linux
-    path: boot():/vmlinuz
-    cmdline: rescue console=tty0 console=ttyS0,115200
-$ucode    module_path: boot():/initramfs.cpio.gz
-EOF
-    cp "$limcd/usr/share/limine/limine-uefi-cd.bin" "$iso/"
-    rm -f "$OUT/busylinux.iso"
-    PATH=$HOST_PATH xorriso -as mkisofs -R -r -J -quiet \
-        -V BUSYLINUX \
-        --efi-boot limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
-        --protective-msdos-label "$iso" -o "$OUT/busylinux.iso"
-    rm -rf "$limcd"
 
     log "Publishing this project's repository"
     rm -rf "$OUT/repo"; mkdir -p "$OUT/repo"

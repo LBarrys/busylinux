@@ -3,7 +3,9 @@
 A musl Linux distribution built on **Alpine Linux edge**, with a kernel
 configured from `tinyconfig` for one specific machine and BusyBox init instead
 of OpenRC. musl, BusyBox, apk-tools and every library come straight from
-Alpine, so the ~36,000 packages in edge install and run unmodified.
+Alpine, so the ~36,000 packages in edge install and run unmodified. The
+testing repository is configured but tagged, so its packages need the tag:
+`apk add electron@testing`.
 
 ## The machine
 

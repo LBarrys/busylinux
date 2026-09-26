@@ -1,6 +1,12 @@
-FROM archlinux:latest
+# The image and the package snapshot share a date, so rebuilding this file
+# installs the same toolchain every time. Move both together.
+ARG ARCH_IMAGE=archlinux:base-devel-20260920.0.596911
+FROM ${ARCH_IMAGE}
+ARG ARCH_SNAPSHOT=2026/09/20
 
-RUN pacman -Syu --noconfirm --needed \
+RUN echo "Server = https://archive.archlinux.org/repos/${ARCH_SNAPSHOT}/\$repo/os/\$arch" \
+        > /etc/pacman.d/mirrorlist \
+    && pacman -Syu --noconfirm --needed \
         base-devel bc cpio curl e2fsprogs git kmod libelf \
         libisoburn meson ncurses ninja openssl perl xz zlib zstd \
     && rm -rf /var/cache/pacman/pkg/*

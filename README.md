@@ -107,7 +107,8 @@ request and push to `main`.
 
 Run `install.sh` as root from an Alpine live USB. It is UEFI only, asks you to
 type the disk name, then wipes the disk and writes a 1 GiB ESP (FAT32, mounted
-at `/boot`, holding the kernel and Limine) and an ext4 root.
+at `/boot`, holding the kernel and Limine) and an ext4 root mounted
+`noatime`. `/tmp` is a tmpfs of up to 8 GB.
 
 ```sh
 apk add sgdisk dosfstools e2fsprogs parted efibootmgr

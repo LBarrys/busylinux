@@ -315,6 +315,10 @@ $ALPINE_MIRROR/$ALPINE_BRANCH/community
 @testing $ALPINE_MIRROR/$ALPINE_BRANCH/testing
 EOF
     echo busylinux > "$root/etc/hostname"
+    cat > "$root/etc/fstab" <<EOF
+LABEL=$ROOT_LABEL                       /                    ext4     rw,noatime                        0      1
+tmpfs                                      /tmp                 tmpfs    rw,nosuid,nodev,size=8G           0      0
+EOF
     printf '127.0.0.1\tlocalhost localhost.localdomain\n::1\t\tlocalhost localhost.localdomain\n127.0.1.1\tbusylinux\n' \
         > "$root/etc/hosts"
     sed -i 's/^root:[^:]*:/root::/' "$root/etc/shadow"

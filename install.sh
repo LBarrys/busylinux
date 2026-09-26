@@ -216,8 +216,9 @@ if [ -n "$KEYFILE" ]; then
 fi
 
 cat > "$MNT/etc/fstab" <<EOF
-LABEL=$ROOT_LABEL  /      ext4  rw,relatime                       0  1
-LABEL=$ESP_LABEL       /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0  2
+LABEL=$ROOT_LABEL                       /                    ext4     rw,noatime                        0      1
+LABEL=$ESP_LABEL                            /boot                vfat     rw,noatime,fmask=0077,dmask=0077  0      2
+tmpfs                                      /tmp                 tmpfs    rw,nosuid,nodev,size=8G           0      0
 EOF
 
 log "Installing Limine"

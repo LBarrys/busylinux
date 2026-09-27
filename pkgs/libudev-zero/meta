@@ -1,0 +1,10 @@
+version=1.0.4
+# Above Alpine's own libudev-zero-1.0.4-r1, so apk takes this build. When
+# Alpine moves to a newer version, move this recipe with it.
+release=100
+desc="libudev replacement for mdevd, with sound cards visible to PipeWire"
+url=https://github.com/illiliti/libudev-zero
+license=ISC
+makedepends="linux-headers"
+provides="so:libudev.so.1=1"
+provider_priority=20

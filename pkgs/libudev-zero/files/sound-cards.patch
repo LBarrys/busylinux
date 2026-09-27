@@ -1,0 +1,97 @@
+diff --git a/udev_device.c b/udev_device.c
+index 58fe059..a60356e 100644
+--- a/udev_device.c
++++ b/udev_device.c
+@@ -517,6 +517,32 @@ static void set_properties_from_evdev(struct udev_device *udev_device)
+     }
+ }
+ 
++static void set_properties_from_sound(struct udev_device *udev_device)
++{
++    const char *subsystem, *sysname, *syspath;
++    char path[PATH_MAX];
++
++    subsystem = udev_device_get_subsystem(udev_device);
++    sysname = udev_device_get_sysname(udev_device);
++    syspath = udev_device_get_syspath(udev_device);
++
++    if (!subsystem || !sysname || !syspath ||
++        strcmp(subsystem, "sound") != 0 || strncmp(sysname, "card", 4) != 0) {
++        return;
++    }
++
++    /*
++     * udev's rules set SOUND_INITIALIZED, and PipeWire and PulseAudio skip
++     * cards without it. The card is announced before its devices, so only
++     * call it initialized once its control device is there.
++     */
++    snprintf(path, sizeof(path), "%s/controlC%s", syspath, sysname + 4);
++
++    if (access(path, F_OK) == 0) {
++        udev_list_entry_add(&udev_device->properties, "SOUND_INITIALIZED", "1", 0);
++    }
++}
++
+ static void set_properties_from_props(struct udev_device *udev_device)
+ {
+     const char *sysname, *subsystem;
+@@ -593,6 +619,7 @@ struct udev_device *udev_device_new_from_syspath(struct udev *udev, const char *
+ 
+     set_properties_from_evdev(udev_device);
+     set_properties_from_props(udev_device);
++    set_properties_from_sound(udev_device);
+ 
+     free(driver);
+     free(subsystem);
+@@ -712,6 +739,7 @@ struct udev_device *udev_device_new_from_uevent(struct udev *udev, char *buf, si
+ 
+     set_properties_from_props(udev_device);
+     set_properties_from_evdev(udev_device);
++    set_properties_from_sound(udev_device);
+     return udev_device;
+ }
+ 
+diff --git a/udev_enumerate.c b/udev_enumerate.c
+index 6fd49c0..8d92fde 100644
+--- a/udev_enumerate.c
++++ b/udev_enumerate.c
+@@ -251,12 +251,18 @@ static int filter_dot(const struct dirent *de)
+     return de->d_name[0] != '.';
+ }
+ 
+-static int scan_devices(struct udev_enumerate *udev_enumerate, const char *path)
++static int filter_card(const struct dirent *de)
++{
++    return strncmp(de->d_name, "card", 4) == 0;
++}
++
++static int scan_devices(struct udev_enumerate *udev_enumerate, const char *path,
++                        int (*filter)(const struct dirent *))
+ {
+     int i, cnt;
+     struct dirent **de;
+ 
+-    cnt = scandir(path, &de, filter_dot, NULL);
++    cnt = scandir(path, &de, filter, NULL);
+ 
+     if (cnt == -1) {
+         return 0;
+@@ -286,11 +292,17 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate)
+     }
+ 
+     for (i = 0; path[i]; i++) {
+-        if (!scan_devices(udev_enumerate, path[i])) {
++        if (!scan_devices(udev_enumerate, path[i], filter_dot)) {
+             return -1;
+         }
+     }
+ 
++    /*
++     * Sound cards have no device node, so /sys/dev never lists them, yet
++     * the card is the device PipeWire and PulseAudio look for.
++     */
++    scan_devices(udev_enumerate, "/sys/class/sound", filter_card);
++
+     return 0;
+ }
+ 

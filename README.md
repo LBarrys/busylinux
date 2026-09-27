@@ -68,6 +68,10 @@ docker run --rm -it \
 | `JOBS=N` | default `nproc` |
 | `IMAGE_SIZE=16G` | size of the sparse `disk.img` (default 8G) |
 
+Recipes in `pkgs/` whose `meta` lists `makedepends` are built in an Alpine
+root with `build-base` rather than with the container's glibc toolchain, so
+they can ship programs and libraries for the image.
+
 `out/` then holds `vmlinuz`, `initramfs.cpio.gz` and `amd-ucode.img`;
 `rootfs.tar.gz`, which `install.sh` unpacks; `disk.img`, the same root file
 system as an ext4 image for QEMU; and `repo/`, this project's signed packages
@@ -173,6 +177,11 @@ login. The user must be in `seat`. Log in on tty1 and run
 `exec wireplumber` and `exec /usr/libexec/xdg-desktop-portal` in the Sway
 config. Keep monitors on the discrete GPU; the iGPU is a second DRM card, and
 cross-GPU output is fragile in every Wayland compositor.
+
+For `mdevd` instead of eudev, install `libudev-zero` from this repository
+rather than Alpine's: it lists sound cards and marks them initialized, which
+PipeWire requires and Alpine's build does not do. Run `mdevd -O 0x4` so
+libudev-zero sees hotplug events.
 
 ROCm needs access to `/dev/kfd`: with eudev,
 `KERNEL=="kfd", GROUP="video", MODE="0660"` in `/etc/udev/rules.d/70-kfd.rules`;

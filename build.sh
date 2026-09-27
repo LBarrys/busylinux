@@ -38,10 +38,10 @@ die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 load_meta() {
     unset version release desc url license depends makedepends subpackages \
-          options provides replaces
+          options provides replaces provider_priority
     release=0
-    desc='' url='' license='' depends=''
-    subpackages='' options='' provides='' replaces=''
+    desc='' url='' license='' depends='' makedepends=''
+    subpackages='' options='' provides='' replaces='' provider_priority=''
     # shellcheck source=/dev/null
     . "$PKGS/$1/meta"
     [ -n "${version:-}" ] || die "$1: meta sets no version"
@@ -221,6 +221,30 @@ apk_root() {
     apk_host --root "$root" --repositories-file "$BLD/repositories" "$@"
 }
 
+# The container's toolchain is glibc's. A recipe that builds programs or
+# libraries for the image lists makedepends, and is built instead in an Alpine
+# root holding busybox, build-base and those, entered with chroot.
+build_in_alpine() {
+    local srcdir=$1 destdir=$2 root=$BLD/alpine-root base=${ALPINE_MIRROR/https:/http:}
+    rm -rf "$root"
+    mkdir -p "$root/etc/apk/keys" "$root/dev"
+    cp -f "$KEYS"/pub/*.pub "$root/etc/apk/keys/"
+    printf '%s/%s/main\n%s/%s/community\n' \
+        "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH" > "$BLD/alpine-repositories"
+    # shellcheck disable=SC2086
+    apk_host --root "$root" --repositories-file "$BLD/alpine-repositories" \
+        add --initdb busybox busybox-binsh build-base $makedepends > /dev/null || return 1
+    [ -e "$root/dev/null" ] || mknod -m 666 "$root/dev/null" c 1 3 || return 1
+    mkdir -p "$root/build/pkg"
+    cp -a "$srcdir" "$root/build/src" || return 1
+    cp "$PKGS/$RECIPE/build" "$root/build/recipe" || return 1
+    chroot "$root" /bin/busybox env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/build \
+        MAKEFLAGS="$MAKEFLAGS" /bin/sh -ec \
+        'cd /build/src && sh -e /build/recipe /build/pkg "$1"' sh "$version" || return 1
+    cp -a "$root/build/pkg/." "$destdir/" || return 1
+    rm -rf "$root"
+}
+
 strip_tree() {
     local dir=$1 file
     while IFS= read -r -d '' file; do
@@ -241,6 +265,7 @@ make_package() {
     [ -n "$pdeps" ] && args+=(--info "depends:$pdeps")
     [ -n "$provides" ] && args+=(--info "provides:$provides")
     [ -n "$replaces" ] && args+=(--info "replaces:$replaces")
+    [ -n "$provider_priority" ] && args+=(--info "provider-priority:$provider_priority")
     for script in "$PKGS/$RECIPE/scripts/$name".*; do
         [ -f "$script" ] && args+=(--script "${script##*.}:$script")
     done
@@ -268,8 +293,12 @@ build_recipe() {
     rm -rf "$dir"
     mkdir -p "$srcdir" "$destdir"
     prepare_srcdir "$RECIPE" "$srcdir"
-    ( cd "$srcdir" && sh -e "$PKGS/$RECIPE/build" "$destdir" "$version" ) ||
-        die "$RECIPE: build failed"
+    if [ -n "$makedepends" ]; then
+        build_in_alpine "$srcdir" "$destdir" || die "$RECIPE: build failed"
+    else
+        ( cd "$srcdir" && sh -e "$PKGS/$RECIPE/build" "$destdir" "$version" ) ||
+            die "$RECIPE: build failed"
+    fi
     case " $options " in *" nostrip "*) ;; *) strip_tree "$destdir" ;; esac
 
     for sub in $subpackages; do

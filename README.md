@@ -103,8 +103,8 @@ qemu-system-x86_64 -m 2G -nographic \
 ```
 
 Log in as `root` with no password. `tests/boot-test.sh out` does the same
-unattended and checks the firewall, the services and a clean power-button
-shutdown; CI runs it, after shellcheck and the full build, on every pull
+unattended and checks the firewall, the services, `update.sh` and a clean
+power-button shutdown; CI runs it, after shellcheck and the full build, on every pull
 request and push to `main`.
 
 ## Installing
@@ -200,19 +200,30 @@ cp /etc/service/crond/log/run /etc/service/docker/log/run
 chmod 755 /etc/service/docker/run
 ```
 
-## Upgrading the kernel
+## Updating
 
-From a checkout, as root:
+The image's own packages (`busylinux-init`, `libudev-zero` and the kernel)
+come from its local repository, so `apk upgrade` alone never changes them.
+Rebuild them on the machine from an up-to-date checkout, as root:
 
 ```sh
-./kernel-update.sh
+git pull
+./update.sh            # everything in pkgs/ but the kernel
+./kernel-update.sh     # the kernel
 ```
 
-It installs the toolchain, builds the kernel from `pkgs/linux-busylinux`,
-signs and installs the package, and removes the toolchain again. It keeps the
-running kernel as `vmlinuz-previous`. `--version X.Y.Z --sha256 SUM` moves to
-another release (the sum is in kernel.org's `sha256sums.asc`); `--help` lists
-the rest.
+`update.sh` builds each recipe, signs the package with `/root/keys/local.rsa`
+(created and trusted on first use), adds it to `/var/lib/busylinux/repo` and
+upgrades what is installed; packages not installed yet, like `libudev-zero`,
+are only added. The release is one past the installed one, so local edits to a
+recipe install too. Files under `/etc` that you have changed are kept, with
+the new version beside them as `.apk-new`. Anything it installs to build
+(`build-base`, `git`, `openssl`) is removed again afterwards; name recipes to
+update only those.
+
+`kernel-update.sh` does the same for the kernel, and keeps the running one as
+`vmlinuz-previous`. `--version X.Y.Z --sha256 SUM` moves to another release
+(the sum is in kernel.org's `sha256sums.asc`). Both take `--help`.
 
 ## License
 

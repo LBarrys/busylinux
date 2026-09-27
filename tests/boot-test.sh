@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Boots a finished build under QEMU and checks it over the serial console:
 # login, the firewall, the fail-closed network, the services, device modes,
-# and a clean shutdown when the ACPI power button is pressed.
+# updating busylinux-init with update.sh, and a clean shutdown when the ACPI
+# power button is pressed.
 #
 #     tests/boot-test.sh [OUT_DIR]      (default: out)
 #
-# Needs qemu-system-x86_64; uses KVM when /dev/kvm is writable. Exits non-zero
+# Needs qemu-system-x86_64, debugfs and openssl; uses KVM when /dev/kvm is writable. Exits non-zero
 # on the first failed check and leaves the console log in OUT_DIR/boot-test.log.
 set -euo pipefail
 
@@ -61,6 +62,26 @@ check() {
 }
 
 cp --sparse=always "$OUT/disk.img" "$work/disk.img"
+
+# A checkout in /root/busylinux and a signing key, as on an installed machine
+# where update.sh has run before, so the guest can update itself offline.
+repo=$(cd "$(dirname "$0")/.." && pwd)
+openssl genrsa -out "$work/local.rsa" 2048 2>/dev/null
+openssl rsa -in "$work/local.rsa" -pubout -out "$work/local.rsa.pub" 2>/dev/null
+{
+    echo "mkdir /root/keys"
+    echo "write $work/local.rsa /root/keys/local.rsa"
+    echo "write $work/local.rsa.pub /etc/apk/keys/local.rsa.pub"
+    for d in busylinux busylinux/pkgs busylinux/pkgs/busylinux-init \
+             busylinux/pkgs/busylinux-init/files; do
+        echo "mkdir /root/$d"
+    done
+    echo "write $repo/update.sh /root/busylinux/update.sh"
+    for f in "$repo"/pkgs/busylinux-init/* "$repo"/pkgs/busylinux-init/files/*; do
+        [ -f "$f" ] && echo "write $f /root/busylinux/${f#"$repo"/}"
+    done
+} > "$work/checkout.debugfs"
+debugfs -w -f "$work/checkout.debugfs" "$work/disk.img" > /dev/null 2>&1
 mkfifo "$work/serial.in" "$work/serial.out" "$work/mon.in" "$work/mon.out"
 : > "$log"
 
@@ -103,9 +124,10 @@ check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload     'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
 check libudev-zero 'apk add --no-network -q libudev-zero >/dev/null 2>&1 && apk info -e libudev-zero >/dev/null && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
+check update     'b=$(apk list --installed busylinux-init) && sh /root/busylinux/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list --installed busylinux-init) && [ "$a" != "$b" ] && [ -x /etc/init.d/rcS ] || { tail -n 20 /tmp/update.log; false; }'
 
-# The power button: QEMU raises the ACPI event, acpid runs poweroff, init runs
-# rcK, and the machine turns itself off.
+# The power button, on the updated busylinux-init: QEMU raises the ACPI
+# event, acpid runs poweroff, init runs rcK, and the machine turns itself off.
 echo system_powerdown > "$work/mon.in"
 deadline=$((SECONDS + 90))
 while kill -0 "$qpid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 1; done

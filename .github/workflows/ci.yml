@@ -18,7 +18,7 @@ jobs:
       - name: shellcheck
         run: |
           shellcheck --version
-          shellcheck -S warning build.sh install.sh kernel-update.sh tests/*.sh pkgs/*/build
+          shellcheck -S warning build.sh install.sh kernel-update.sh update.sh tests/*.sh pkgs/*/build
           f=pkgs/busylinux-init/files
           shellcheck -S warning -s sh "$f"/rcS "$f"/rcK "$f"/supervise \
             "$f"/svlog "$f"/sv-* "$f"/acpi-poweroff "$f"/initramfs-init "$f"/busylinux.sh

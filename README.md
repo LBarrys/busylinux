@@ -128,8 +128,8 @@ the rest. Turn Secure Boot off: the kernel is not signed.
 
 `/etc/init.d/rcS` mounts the pseudo file systems, efivarfs and cgroup v2;
 checks the root file system if it was mounted read-only; loads the keymap,
-sysctls and `/etc/modules-load.d`; starts `udevd` if eudev is installed and
-`mdev` otherwise; sets the modes of `/dev/kvm` (group `kvm`), `/dev/ntsync`
+sysctls and `/etc/modules-load.d`; starts `mdevd` if it is installed, else
+`udevd` if eudev is, else `mdev`; sets the modes of `/dev/kvm` (group `kvm`), `/dev/ntsync`
 and `/dev/uinput` (group `input`); loads the firewall; and TRIMs every ext4
 file system a minute later. `rcK` writes the clock to the RTC (in UTC) at
 shutdown.
@@ -178,10 +178,12 @@ login. The user must be in `seat`. Log in on tty1 and run
 config. Keep monitors on the discrete GPU; the iGPU is a second DRM card, and
 cross-GPU output is fragile in every Wayland compositor.
 
-For `mdevd` instead of eudev, install `libudev-zero` from this repository
-rather than Alpine's: it lists sound cards and marks them initialized, which
-PipeWire requires and Alpine's build does not do. Run `mdevd -O 0x4` so
-libudev-zero sees hotplug events.
+For `mdevd` instead of eudev, `apk add mdevd libudev-zero` (and remove
+`eudev`): `rcS` then starts `mdevd -O 4` and replays every device already
+present, which also loads their modules, `amdgpu` included. Take
+`libudev-zero` from this repository rather than Alpine's: it lists sound
+cards and marks them initialized, which PipeWire requires and Alpine's build
+does not do.
 
 ROCm needs access to `/dev/kfd`: with eudev,
 `KERNEL=="kfd", GROUP="video", MODE="0660"` in `/etc/udev/rules.d/70-kfd.rules`;

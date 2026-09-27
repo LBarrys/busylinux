@@ -52,7 +52,21 @@ for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
     [ -f "$conf" ] && sysctl -e -q -p "$conf"
 done
 
-if [ -x /sbin/udevd ]; then
+if command -v mdevd > /dev/null 2>&1; then
+    # mdevd hands every event it has handled on to netlink group 4, where
+    # libudev-zero listens. The replay of the devices already present waits
+    # for mdevd to handle each one, so it starts only once mdevd says it is
+    # ready; an mdevd that exits first leaves the FIFO empty, and mdev runs.
+    mkfifo /run/mdevd-ready
+    mdevd -O 4 -D 3 3> /run/mdevd-ready &
+    if read -r _ < /run/mdevd-ready; then
+        mdevd-coldplug -O 4
+    else
+        echo "rcS: mdevd did not start; using mdev"
+        mdev -d
+    fi
+    rm -f /run/mdevd-ready
+elif [ -x /sbin/udevd ]; then
     udevd -d
     udevadm trigger --type=subsystems --action=add
     udevadm trigger --type=devices --action=add

@@ -153,8 +153,10 @@ if [ "$ASSUME_YES" != 1 ]; then
 fi
 
 log "Checking the toolchain"
+# GNU grep: arch/x86/kvm/Makefile (7.x) greps with --include and
+# --group-separator, which busybox's grep rejects.
 TOOLS="build-base bash bc bison flex perl openssl openssl-dev elfutils-dev
-       linux-headers diffutils findutils xz gzip cpio zstd"
+       linux-headers diffutils findutils grep xz gzip cpio zstd"
 if [ "$MENUCONFIG" = 1 ]; then TOOLS="$TOOLS ncurses-dev"; fi
 for t in $TOOLS; do
     apk list --installed "$t" 2>/dev/null | grep -q "^$t-[0-9]" || ADDED="$ADDED $t"

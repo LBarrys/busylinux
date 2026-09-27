@@ -102,6 +102,7 @@ check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
 # Fail closed: with the ruleset gone, the dhcp service must refuse to start.
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload     'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
+check libudev-zero 'apk add --no-network -q libudev-zero >/dev/null 2>&1 && apk info -e libudev-zero >/dev/null && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
 
 # The power button: QEMU raises the ACPI event, acpid runs poweroff, init runs
 # rcK, and the machine turns itself off.

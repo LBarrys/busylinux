@@ -1,0 +1,8 @@
+#!/bin/sh -e
+# Runs inside the Alpine build root (makedepends in meta).
+patch -p1 < sound-cards.patch
+make PREFIX=/usr
+make PREFIX=/usr DESTDIR="$1" install-shared
+# Only the library: headers and pkg-config belong to a -dev package, and
+# Alpine's libudev-zero-dev would pin its own build.
+rm -rf "$1/usr/include" "$1/usr/lib/pkgconfig" "$1/usr/lib/libudev.so"

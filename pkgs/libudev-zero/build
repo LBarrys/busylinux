@@ -3,6 +3,8 @@
 patch -p1 < sound-cards.patch
 make PREFIX=/usr
 make PREFIX=/usr DESTDIR="$1" install-shared
+install -d "$1/usr/libexec"
+${CC:-cc} ${CFLAGS:--O2} -Wall -o "$1/usr/libexec/libudev-zero-mdev" mdev-relay.c
 # Only the library: headers and pkg-config belong to a -dev package, and
 # Alpine's libudev-zero-dev would pin its own build.
 rm -rf "$1/usr/include" "$1/usr/lib/pkgconfig" "$1/usr/lib/libudev.so"

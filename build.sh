@@ -387,7 +387,7 @@ main() {
     build_host_apk
     setup_key
     fetch_alpine_keys
-    export JOBS ARCH MENUCONFIG=${MENUCONFIG:-0} VM_SUPPORT=${VM_SUPPORT:-1}
+    export JOBS ARCH MENUCONFIG=${MENUCONFIG:-0} VM_SUPPORT=${VM_SUPPORT:-0}
     export HOSTCC=/usr/bin/gcc MAKEFLAGS="-j$JOBS"
 
     for recipe in $(recipes); do build_recipe "$recipe"; done

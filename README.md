@@ -30,12 +30,12 @@ The kernel also carries:
 | Xbox-protocol pads (GameSir and the like) | `xpad` with rumble, `joydev`, built in |
 | Steam Input | `uinput`, built in |
 | ROCm | `HSA_AMD` with SVM |
-| VMs | `KVM_AMD` built in, `vhost-net` |
 | Containers | cgroup v2, BPF, veth, bridge, NAT, the `iptables-nft` matches |
 | Recovery | SysRq, limited to REISUB |
 
-Left out on purpose: Wi-Fi, Bluetooth, and every file system but ext4 and
-FAT32.
+Left out on purpose: Wi-Fi, Bluetooth, every file system but ext4 and FAT32,
+and virtualization: no KVM to run VMs, and no drivers to run as one unless the
+build asks for them (`VM_SUPPORT=1`, below).
 
 Modules are not loaded automatically at boot unless `eudev`, `mdevd` or
 `libudev-zero` is installed (see [Desktop](#desktop)); the base stays without
@@ -63,7 +63,7 @@ docker run --rm -it \
 | `ALPINE_MIRROR=...` | default `https://mirror.maeen.sa/alpine` |
 | `REPO_URL=https://...` | an extra network URL for this repository |
 | `LOCAL_REPO=0` | do not copy this repository into the image |
-| `VM_SUPPORT=0` | leave out virtio and bochs |
+| `VM_SUPPORT=1` | add virtio and bochs, to boot the image under QEMU |
 | `MENUCONFIG=1` | open `menuconfig` after the fragments are merged |
 | `REBUILD=1` | rebuild packages even when cached |
 | `JOBS=N` | default `nproc` |
@@ -95,6 +95,8 @@ The `Dockerfile` pins the Arch image and the matching
 
 ## Running under QEMU
 
+Build with `-e VM_SUPPORT=1` first; the default kernel has no virtio drivers.
+
 ```sh
 qemu-system-x86_64 -m 2G -nographic \
   -kernel out/vmlinuz -initrd out/initramfs.cpio.gz \
@@ -122,7 +124,7 @@ apk add tzdata kbd-bkeymaps      # only for --timezone and --keymap
   --timezone Europe/Berlin --keymap de/de-latin1
 ```
 
-`--user` adds the user to `video input audio seat wheel kvm`; `--help` lists
+`--user` adds the user to `video input audio seat wheel`; `--help` lists
 the rest. Turn Secure Boot off: the kernel is not signed.
 
 ## Boot and services
@@ -131,8 +133,8 @@ the rest. Turn Secure Boot off: the kernel is not signed.
 checks the root file system if it was mounted read-only; loads the keymap,
 sysctls and `/etc/modules-load.d`; starts `mdevd` if it is installed, else
 `udevd` if eudev is, else `mdev` (through libudev-zero's relay if
-libudev-zero is installed); sets the modes of `/dev/kvm` (group `kvm`), `/dev/ntsync`
-and `/dev/uinput` (group `input`); loads the firewall; and TRIMs every ext4
+libudev-zero is installed); sets the modes of `/dev/ntsync` and `/dev/uinput`
+(group `input`); loads the firewall; and TRIMs every ext4
 file system a minute later. `rcK` writes the clock to the RTC (in UTC) at
 shutdown.
 
@@ -155,9 +157,8 @@ their own name.
 ### The firewall
 
 `/etc/nftables.conf` drops everything inbound and forwarded that is not a
-reply, except ICMP, DHCP, and DNS/DHCP from libvirt and Podman guests to the
-host. Docker, Podman and libvirt bridges may forward outbound, and to ports
-those tools publish.
+reply, except ICMP, DHCP, and DNS from Podman containers to the host. Docker
+and Podman bridges may forward outbound, and to ports those tools publish.
 
 It fails closed: while `/etc/nftables.conf` exists and no ruleset is loaded,
 `dhcp` brings no interface up and says so in the log. Fix the file and run
@@ -199,10 +200,9 @@ ROCm needs access to `/dev/kfd`: with eudev,
 `KERNEL=="kfd", GROUP="video", MODE="0660"` in `/etc/udev/rules.d/70-kfd.rules`;
 with mdev, `kfd root:video 0660` in `/etc/mdev.conf`.
 
-## Containers and VMs
+## Containers
 
-`apk add podman`, or `qemu-system-x86_64` (members of `kvm` can use
-`/dev/kvm`), works as is. Docker needs a service:
+`apk add podman` works as is. Docker needs a service:
 
 ```sh
 apk add docker

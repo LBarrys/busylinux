@@ -33,9 +33,9 @@ The kernel also carries:
 | Containers | cgroup v2, BPF, veth, bridge, NAT, the `iptables-nft` matches |
 | Recovery | SysRq, limited to REISUB |
 
-Left out on purpose: Wi-Fi, Bluetooth, every file system but ext4 and FAT32,
-and virtualization: no KVM to run VMs, and no drivers to run as one unless the
-build asks for them (`VM_SUPPORT=1`, below).
+Left out on purpose: Wi-Fi, Bluetooth, HDMI and DisplayPort audio, every file
+system but ext4 and FAT32, and virtualization: no KVM to run VMs, and no
+drivers to run as one unless the build asks for them (`VM_SUPPORT=1`, below).
 
 Modules are not loaded automatically at boot unless `eudev`, `mdevd` or
 `libudev-zero` is installed (see [Desktop](#desktop)); the base stays without

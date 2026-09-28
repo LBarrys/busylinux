@@ -24,7 +24,7 @@ Options:
                         console keymap, e.g. de/de-latin1 (default: the
                         kernel's US map); needs kbd-bkeymaps on the system
                         running this script
-    --user NAME         create this user in video/input/audio/seat/wheel/kvm,
+    --user NAME         create this user in video/input/audio/seat/wheel,
                         set a password
     --no-nvram          do not add a UEFI boot entry
     --yes               do not ask for confirmation
@@ -278,10 +278,10 @@ fi
 if [ -n "$USER_NAME" ]; then
     log "Creating $USER_NAME"
     chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
-    for g in seat wheel kvm; do
+    for g in seat wheel; do
         chroot "$MNT" /bin/busybox addgroup -S "$g" 2>/dev/null || :
     done
-    for g in video input audio seat wheel kvm; do
+    for g in video input audio seat wheel; do
         chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
     done
     if [ -f "$MNT/etc/doas.d/wheel.conf" ]; then

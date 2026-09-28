@@ -52,6 +52,7 @@ jobs:
             -v "$PWD/out:/build/out" -v "$PWD/cache:/build/cache" \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             -e ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine \
+            -e VM_SUPPORT=1 \
             busylinux-builder
           sudo chown -R "$(id -u):$(id -g)" cache
 

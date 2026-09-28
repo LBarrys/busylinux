@@ -100,9 +100,8 @@ for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
 done
 
 # The device manager applies its own table to every node it finds; give these
-# the modes their users need: KVM for the kvm group, Wine's NT sync objects
-# for everyone (the kernel's own choice), uinput for the input group (Steam).
-if [ -c /dev/kvm ]; then chgrp kvm /dev/kvm && chmod 660 /dev/kvm; fi
+# the modes their users need: Wine's NT sync objects for everyone (the
+# kernel's own choice), uinput for the input group (Steam).
 if [ -c /dev/ntsync ]; then chmod 666 /dev/ntsync; fi
 if [ -c /dev/uinput ]; then chgrp input /dev/uinput && chmod 660 /dev/uinput; fi
 

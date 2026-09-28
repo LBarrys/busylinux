@@ -24,7 +24,7 @@ Options:
     --key FILE          signing key (default: /root/keys/local.rsa, created)
     --repo DIR          local repository (default: /var/lib/busylinux/repo/x86_64)
     --menuconfig        open menuconfig after the fragments are merged
-    --no-vm             leave out virtio and bochs
+    --vm                include virtio and bochs, to boot it under QEMU
     --no-fallback       do not keep the running kernel as vmlinuz-previous
     --no-install        build and package only
     --keep-source       reuse an existing build tree instead of extracting
@@ -36,7 +36,7 @@ EOT
 
 VERSION='' RELEASE='' JOBS='' WORK=/var/tmp/busylinux-kernel
 KEY=/root/keys/local.rsa REPO=/var/lib/busylinux/repo/x86_64
-VM=1 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
+VM=0 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
 KEEP_TOOLS=0 ADDED=''
 SHA256='' CHECKOUT='' NAME=linux-busylinux
 MIRROR=https://cdn.kernel.org/pub/linux/kernel
@@ -78,6 +78,7 @@ while [ $# -gt 0 ]; do
         --sha256)      SHA256=$2; shift 2 ;;
         --config-only) CONFIG_ONLY=1; shift ;;
         --menuconfig)  MENUCONFIG=1; shift ;;
+        --vm)          VM=1; shift ;;
         --no-vm)       VM=0; shift ;;
         --no-fallback) FALLBACK=0; shift ;;
         --no-install)  INSTALL=0; shift ;;

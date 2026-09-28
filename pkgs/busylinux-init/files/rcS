@@ -77,6 +77,16 @@ elif [ -x /sbin/udevd ]; then
     udevadm trigger --type=subsystems --action=add
     udevadm trigger --type=devices --action=add
     udevadm settle -t 10
+elif [ -x /usr/libexec/libudev-zero-mdev ]; then
+    # BusyBox mdev, run by libudev-zero's relay: it hands each event on to
+    # libudev-zero once mdev has handled it, as mdevd -O 4 does. The relay
+    # listens before it returns; mdev -s then makes the nodes of the devices
+    # already present, and their modules load by alias. What those modules
+    # add comes through the relay like any other event.
+    /usr/libexec/libudev-zero-mdev
+    mdev -s
+    find /sys/devices -name modalias -type f -print0 | xargs -0 cat 2>/dev/null |
+        sort -u | xargs -r modprobe -q -b -a 2>/dev/null
 else
     mdev -d
 fi

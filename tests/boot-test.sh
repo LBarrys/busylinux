@@ -95,6 +95,7 @@ qemu-system-x86_64 -nodefaults -display none -no-reboot \
     -append "root=LABEL=BUSYLINUX_ROOT ro console=ttyS0,115200" \
     -drive file="$work/disk.img",format=raw,if=virtio \
     -nic user,model=virtio-net-pci \
+    -device qemu-xhci,id=xhci -audiodev none,id=snd0 \
     -chardev pipe,id=ser,path="$work/serial" -serial chardev:ser \
     -chardev pipe,id=mon,path="$work/mon" -mon chardev=mon,mode=readline &
 qpid=$!
@@ -125,6 +126,11 @@ check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload     'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
 check libudev-zero 'apk add --no-network -q libudev-zero >/dev/null 2>&1 && apk info -e libudev-zero >/dev/null && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
+# BusyBox mdev through libudev-zero's relay, as rcS runs it when mdevd is not
+# installed: a USB sound card plugged in now gets its module and its node.
+check mdev-relay 'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
+echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
+check hotplug    'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
 check update     'b=$(apk list --installed busylinux-init) && sh /root/busylinux/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list --installed busylinux-init) && [ "$a" != "$b" ] && [ -x /etc/init.d/rcS ] || { tail -n 20 /tmp/update.log; false; }'
 
 # The power button, on the updated busylinux-init: QEMU raises the ACPI

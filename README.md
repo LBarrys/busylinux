@@ -37,9 +37,10 @@ The kernel also carries:
 Left out on purpose: Wi-Fi, Bluetooth, and every file system but ext4 and
 FAT32.
 
-Modules are not loaded automatically at boot unless `eudev` is installed; the
-base stays without it. List what you need in `/etc/modules-load.d/*.conf`
-(`amdgpu`, for one) or install `eudev`.
+Modules are not loaded automatically at boot unless `eudev`, `mdevd` or
+`libudev-zero` is installed (see [Desktop](#desktop)); the base stays without
+them. List what you need in `/etc/modules-load.d/*.conf` (`amdgpu`, for one)
+or install one of those.
 
 ## Building
 
@@ -129,7 +130,8 @@ the rest. Turn Secure Boot off: the kernel is not signed.
 `/etc/init.d/rcS` mounts the pseudo file systems, efivarfs and cgroup v2;
 checks the root file system if it was mounted read-only; loads the keymap,
 sysctls and `/etc/modules-load.d`; starts `mdevd` if it is installed, else
-`udevd` if eudev is, else `mdev`; sets the modes of `/dev/kvm` (group `kvm`), `/dev/ntsync`
+`udevd` if eudev is, else `mdev` (through libudev-zero's relay if
+libudev-zero is installed); sets the modes of `/dev/kvm` (group `kvm`), `/dev/ntsync`
 and `/dev/uinput` (group `input`); loads the firewall; and TRIMs every ext4
 file system a minute later. `rcK` writes the clock to the RTC (in UTC) at
 shutdown.
@@ -184,6 +186,14 @@ present, which also loads their modules, `amdgpu` included. Take
 `libudev-zero` from this repository rather than Alpine's: it lists sound
 cards and marks them initialized, which PipeWire requires and Alpine's build
 does not do.
+
+BusyBox `mdev` works too: `apk add libudev-zero` alone, from this repository,
+with neither `mdevd` nor `eudev` installed. It ships
+`/usr/libexec/libudev-zero-mdev`, a relay that runs `mdev` for each kernel event
+and then hands the event on to libudev-zero, as `mdevd -O 4` does; `mdev -d`
+cannot. `rcS` starts it and loads the modules of the devices already present.
+Nodes get their modes from Alpine's `/etc/mdev.conf`, whose `$MODALIAS` rule
+also loads modules for devices plugged in later.
 
 ROCm needs access to `/dev/kfd`: with eudev,
 `KERNEL=="kfd", GROUP="video", MODE="0660"` in `/etc/udev/rules.d/70-kfd.rules`;

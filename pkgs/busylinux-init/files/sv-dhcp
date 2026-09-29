@@ -1,8 +1,6 @@
 #!/bin/sh
 exec 2>&1
-# Fail closed: while /etc/nftables.conf exists but no ruleset is loaded, no
-# interface comes up. Once 'nft -f /etc/nftables.conf' succeeds, this carries
-# on by itself at the next check.
+# Fail closed: no network while nftables.conf exists and no ruleset is loaded.
 if [ -f /etc/nftables.conf ] && [ -z "$(nft list ruleset 2>/dev/null)" ]; then
     echo "no firewall ruleset is loaded; not bringing the network up"
     exec sleep 30

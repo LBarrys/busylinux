@@ -62,8 +62,7 @@ for r in "$@"; do
     [ "$r" != linux-busylinux ] || die "use kernel-update.sh for the kernel"
 done
 
-# The meta field of a recipe, in a subshell so recipes cannot leak into
-# each other or into this script. The defaults are read back through eval.
+# A meta field, read in a subshell so recipes cannot leak into each other.
 # shellcheck disable=SC2034
 field() (
     version='' release=0 desc='' url='' license='' depends='' makedepends=''
@@ -128,7 +127,6 @@ if [ ! -f "$KEY" ]; then
     info "generated $KEY and trusted its public half"
 fi
 
-# A subshell, so that none of its variables reach the caller's.
 fetch_sources() (
     dir=$PKGS/$1 srcdir=$2
     while read -r src dest; do
@@ -180,7 +178,6 @@ strip_tree() {
     done
 }
 
-# apk mkpkg --info fields, one per line, from the recipe's meta.
 info_fields() {
     printf '%s\n' "name:$1" "version:$2" "description:$(field "$1" desc)" \
         "arch:$ARCH" "license:$(field "$1" license)" "url:$(field "$1" url)" "origin:$1"
@@ -199,7 +196,7 @@ UPGRADE='' NEW=''
 for r in "$@"; do
     version=$(field "$r" version) release=$(field "$r" release)
     [ -z "$(field "$r" subpackages)" ] || die "$r: subpackages are built by build.sh only"
-    # One past what is installed, unless the recipe is further ahead already.
+    # One past the installed release, unless meta is ahead.
     inst=$(installed "$r" || :)
     case $inst in
         "$version"-r*) [ "${inst##*-r}" -lt "$release" ] || release=$(( ${inst##*-r} + 1 )) ;;
@@ -214,7 +211,7 @@ for r in "$@"; do
     ( cd "$src" && sh -e "$PKGS/$r/build" "$pkg" "$version" ) || die "$r: build failed"
     case " $(field "$r" options) " in *" nostrip "*) ;; *) strip_tree "$pkg" ;; esac
 
-    # The recipe list is not needed past here; reuse "$@" for apk mkpkg.
+    # "$@" now holds apk mkpkg's arguments.
     set --
     while IFS= read -r i; do set -- "$@" --info "$i"; done <<EOF
 $(info_fields "$r" "$pkgver")

@@ -148,7 +148,6 @@ checksum_recipe() {
     info "$recipe: wrote $(grep -c . "$PKGS/$recipe/sha256sums") checksums"
 }
 
-# The container's own apk-tools, which must be version 3 for mkpkg and mkndx.
 host_apk() {
     APK=$(command -v apk) || die "apk is not installed in the container"
     case $("$APK" --version) in
@@ -208,10 +207,7 @@ apk_root() {
     apk_host --root "$root" --repositories-file "$BLD/repositories" "$@"
 }
 
-# The container is an Alpine stable release; the image follows ALPINE_BRANCH.
-# A recipe that builds programs or libraries for the image lists makedepends,
-# and is built in a root of that branch holding busybox, build-base and those,
-# entered with chroot, so it links against the libraries the image will have.
+# Built in a chroot of ALPINE_BRANCH, to link against the image's libraries.
 build_in_alpine() {
     local srcdir=$1 destdir=$2 root=$BLD/alpine-root base=${ALPINE_MIRROR/https:/http:}
     rm -rf "$root"

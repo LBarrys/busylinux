@@ -1,50 +1,40 @@
 # BusyLinux
 
-A musl Linux distribution built on **Alpine Linux edge**, with a kernel
-configured from `tinyconfig` for one specific machine and BusyBox init instead
-of OpenRC. musl, BusyBox, apk-tools and every library come straight from
-Alpine, so the ~36,000 packages in edge install and run unmodified. The
-testing repository is configured but tagged, so its packages need the tag:
-`apk add electron@testing`.
+A musl distribution on **Alpine Linux edge** with BusyBox init and runit instead
+of OpenRC, and a `tinyconfig` kernel for one machine. Everything but the kernel
+and init comes straight from Alpine, so its packages install unmodified.
+Testing packages need their tag: `apk add electron@testing`.
 
 ## The machine
 
 ```
-CPU     AMD Ryzen 7 7800X3D (Zen 4, AM5, 8C/16T)
-GPU     Radeon RX 7900 GRE (Navi 31) + Raphael iGPU  -> amdgpu
+CPU     AMD Ryzen 7 7800X3D (Zen 4, 8C/16T)
+GPU     Radeon RX 7900 GRE + Raphael iGPU       -> amdgpu
 Board   MSI MAG B650 TOMAHAWK WIFI
-          LAN     Realtek RTL8125BG 2.5G             -> r8169
-          Audio   Realtek ALC4080                    -> USB Audio Class, not HDA
+          LAN     Realtek RTL8125BG 2.5G        -> r8169
+          Audio   Realtek ALC4080               -> USB Audio
           Storage 3x NVMe, 6x SATA
-RAM     32 GB DDR5, EXPO (firmware-side; the kernel needs nothing for it)
+RAM     32 GB DDR5
 ```
 
-For other hardware, edit `pkgs/linux-busylinux/files/busylinux.config`. The
-build fails if a symbol it relies on is lost or one it excludes creeps back.
+Other hardware: edit `pkgs/linux-busylinux/files/busylinux.config`. The build
+fails if a required option is lost or an excluded one creeps back.
 
-The kernel also carries:
-
-| For | |
+| Kernel extras | |
 |---|---|
 | Wine / Proton | `NTSYNC` |
-| Xbox-protocol pads (GameSir and the like) | `xpad` with rumble, `joydev`, built in |
-| Steam Input | `uinput`, built in |
+| Xbox-protocol pads | `xpad` with rumble, `joydev` |
+| Steam Input | `uinput` |
 | ROCm | `HSA_AMD` with SVM |
-| Containers | cgroup v2, BPF, veth, bridge, NAT, the `iptables-nft` matches |
-| Recovery | SysRq, limited to REISUB |
+| Containers | cgroup v2, BPF, veth, bridge, NAT, `iptables-nft` matches |
+| Recovery | SysRq, REISUB only |
 
-Left out on purpose: Wi-Fi, Bluetooth, HDMI and DisplayPort audio, every file
-system but ext4 and FAT32, and virtualization: no KVM to run VMs, and no
-drivers to run as one unless the build asks for them (`VM_SUPPORT=1`, below).
-
-Modules are not loaded automatically at boot unless `eudev`, `mdevd` or
-`libudev-zero` is installed (see [Desktop](#desktop)); the base stays without
-them. List what you need in `/etc/modules-load.d/*.conf` (`amdgpu`, for one)
-or install one of those.
+Left out: Wi-Fi, Bluetooth, HDMI/DP audio, swap, file systems other than ext4
+and FAT32, KVM, and VM guest drivers unless built with `VM_SUPPORT=1`.
 
 ## Building
 
-Everything is compiled inside an Alpine Linux container:
+In an Alpine container (`alpine:3.24.2`, pinned by digest in the `Dockerfile`):
 
 ```sh
 docker build -t busylinux-builder .
@@ -57,46 +47,35 @@ docker run --rm -it \
 
 | Variable | |
 |---|---|
-| `PACKAGES="..."` | extra Alpine packages for the image |
-| `BASE_PACKAGES="..."` | replace the default package set |
+| `PACKAGES="..."` | extra Alpine packages |
+| `BASE_PACKAGES="..."` | replace the default set |
 | `ALPINE_BRANCH=v3.24` | a stable release instead of edge |
 | `ALPINE_MIRROR=...` | default `https://mirror.maeen.sa/alpine` |
-| `REPO_URL=https://...` | an extra network URL for this repository |
-| `LOCAL_REPO=0` | do not copy this repository into the image |
-| `VM_SUPPORT=1` | add virtio and bochs, to boot the image under QEMU |
-| `MENUCONFIG=1` | open `menuconfig` after the fragments are merged |
-| `REBUILD=1` | rebuild packages even when cached |
+| `REPO_URL=https://...` | an extra URL for this repository |
+| `LOCAL_REPO=0` | leave this repository out of the image |
+| `VM_SUPPORT=1` | virtio and bochs, for QEMU |
+| `MENUCONFIG=1` | `menuconfig` after merging the fragments |
+| `REBUILD=1` | ignore cached packages |
 | `JOBS=N` | default `nproc` |
-| `IMAGE_SIZE=16G` | size of the sparse `disk.img` (default 8G) |
+| `IMAGE_SIZE=16G` | `disk.img` size (default 8G) |
 
-Recipes in `pkgs/` whose `meta` lists `makedepends` are built in a root of
-`ALPINE_BRANCH` with `build-base`, so the programs and libraries they ship link
-against what the image has; the kernel is built with the container's own
-toolchain.
+`out/` gets `vmlinuz`, `initramfs.cpio.gz`, `amd-ucode.img`, `rootfs.tar.gz`
+(for `install.sh`), `disk.img` (for QEMU) and `repo/` (signed packages and
+public key). Recipes with `makedepends` build in a chroot of `ALPINE_BRANCH`.
 
-`out/` then holds `vmlinuz`, `initramfs.cpio.gz` and `amd-ucode.img`;
-`rootfs.tar.gz`, which `install.sh` unpacks; `disk.img`, the same root file
-system as an ext4 image for QEMU; and `repo/`, this project's signed packages
-and public key.
-
-The signing key lives only in the `busylinux-cache` volume. Lose it and
-installed systems stop trusting new builds, so keep a copy:
+The signing key exists only in the `busylinux-cache` volume; lose it and
+installed systems reject new builds. Back it up:
 
 ```sh
 docker run --rm -v busylinux-cache:/c busylinux-builder cat /c/keys/busylinux.rsa > busylinux.rsa
 ```
 
-To restore it into a fresh volume, put it back at `keys/busylinux.rsa` and its
-public half (`openssl rsa -pubout`) at `keys/pub/busylinux.rsa.pub` before the
-first build.
+To restore, put it at `keys/busylinux.rsa` and its public half at
+`keys/pub/busylinux.rsa.pub` in a fresh volume.
 
-The `Dockerfile` pins an Alpine stable release by tag and digest
-(`ALPINE_IMAGE`); its apk-tools builds and signs the packages. Move the tag and
-digest together.
+## QEMU
 
-## Running under QEMU
-
-Build with `-e VM_SUPPORT=1` first; the default kernel has no virtio drivers.
+Build with `-e VM_SUPPORT=1`, then:
 
 ```sh
 qemu-system-x86_64 -m 2G -nographic \
@@ -106,64 +85,46 @@ qemu-system-x86_64 -m 2G -nographic \
   -nic user,model=virtio-net-pci
 ```
 
-Log in as `root` with no password. `tests/boot-test.sh out` does the same
-unattended and checks the firewall, the services, `update.sh` and a clean
-power-button shutdown; CI runs it, after shellcheck and the full build, on every pull
-request and push to `main`.
+Log in as `root`, no password. CI runs `tests/boot-test.sh out`, which does
+this unattended and checks the firewall, services, device hotplug, `update.sh`
+and a power-button shutdown.
 
 ## Installing
 
-Run `install.sh` as root from an Alpine live USB. It is UEFI only, asks you to
-type the disk name, then wipes the disk and writes a 1 GiB ESP (FAT32, mounted
-at `/boot`, holding the kernel and Limine) and an ext4 root mounted
-`noatime`. `/tmp` is a tmpfs of up to 8 GB.
+From an Alpine live USB, as root. UEFI only; it wipes the disk and creates a
+1 GiB ESP at `/boot` (kernel and Limine) and an ext4 root. Turn Secure Boot off.
 
 ```sh
 apk add sgdisk dosfstools e2fsprogs parted efibootmgr
-apk add tzdata kbd-bkeymaps      # only for --timezone and --keymap
+apk add tzdata kbd-bkeymaps      # for --timezone and --keymap
 ./install.sh --disk /dev/nvme0n1 --user alice \
   --timezone Europe/Berlin --keymap de/de-latin1
 ```
 
-`--user` adds the user to `video input audio seat wheel`; `--help` lists
-the rest. Turn Secure Boot off: the kernel is not signed.
+`--user` joins `video input audio seat wheel`; `--help` lists the rest.
 
 ## Boot and services
 
-`/etc/init.d/rcS` mounts the pseudo file systems, efivarfs and cgroup v2;
-checks the root file system if it was mounted read-only; loads the keymap,
-sysctls and `/etc/modules-load.d`; starts `mdevd` if it is installed, else
-`udevd` if eudev is, else `mdev` (through libudev-zero's relay if
-libudev-zero is installed); sets the modes of `/dev/ntsync` and `/dev/uinput`
-(group `input`); loads the firewall; and TRIMs every ext4
-file system a minute later. `rcK` writes the clock to the RTC (in UTC) at
-shutdown.
+`rcS` mounts the pseudo file systems, efivarfs and cgroup v2, checks the root
+file system, loads the keymap, sysctls and `/etc/modules-load.d`, starts the
+device manager, loads the firewall and TRIMs ext4 a minute later. `rcK` saves
+the clock in UTC. `/tmp` is a tmpfs of up to 8 GB.
 
-Everything long-running is a runit service under `/etc/service`, started by
-`inittab` through a guard that sleeps rather than let BusyBox init respawn a
-missing binary in a tight loop:
+Long-running services are runit services under `/etc/service`:
 
 | Service | |
 |---|---|
-| `syslogd`, `klogd` | into `/var/log/messages`, rotated at 2 MB |
-| `crond` | for user crontabs; root's is empty |
+| `syslogd`, `klogd` | `/var/log/messages`, rotated at 2 MB |
+| `crond` | user crontabs |
 | `ntpd` | `pool.ntp.org`, `time.cloudflare.com` |
 | `dhcp` | `udhcpc` on the first Ethernet interface |
-| `acpid` | the power button powers off |
+| `acpid` | power button powers off |
 | `seatd`, `dbus` | idle until installed |
 
-Services other than `syslogd`, `klogd` and `acpid` log through `logger` under
-their own name.
-
-### The firewall
-
-`/etc/nftables.conf` drops everything inbound and forwarded that is not a
-reply, except ICMP, DHCP, and DNS from Podman containers to the host. Docker
-and Podman bridges may forward outbound, and to ports those tools publish.
-
-It fails closed: while `/etc/nftables.conf` exists and no ruleset is loaded,
-`dhcp` brings no interface up and says so in the log. Fix the file and run
-`nft -f /etc/nftables.conf`; the network follows within 30 seconds.
+The firewall (`/etc/nftables.conf`) drops unsolicited inbound and forwarded
+traffic except ICMP, DHCP and Podman DNS; Docker and Podman bridges may forward
+out and to published ports. It fails closed: with no ruleset loaded, `dhcp`
+keeps the network down until `nft -f /etc/nftables.conf` succeeds.
 
 ## Desktop
 
@@ -175,31 +136,26 @@ apk add linux-firmware-amdgpu eudev \
     xdg-desktop-portal xdg-desktop-portal-gtk font-noto
 ```
 
-`eudev` is what loads `amdgpu` and lets libinput see devices plugged in after
-login. The user must be in `seat`. Log in on tty1 and run
-`dbus-run-session sway`, with `exec pipewire`, `exec pipewire-pulse`,
-`exec wireplumber` and `exec /usr/libexec/xdg-desktop-portal` in the Sway
-config. Keep monitors on the discrete GPU; the iGPU is a second DRM card, and
-cross-GPU output is fragile in every Wayland compositor.
+Join `seat`, log in on tty1 and run `dbus-run-session sway`, with `pipewire`,
+`pipewire-pulse`, `wireplumber` and `/usr/libexec/xdg-desktop-portal` started
+from the Sway config. Keep monitors on the discrete GPU.
 
-For `mdevd` instead of eudev, `apk add mdevd libudev-zero` (and remove
-`eudev`): `rcS` then starts `mdevd -O 4` and replays every device already
-present, which also loads their modules, `amdgpu` included. Take
-`libudev-zero` from this repository rather than Alpine's: it lists sound
-cards and marks them initialized, which PipeWire requires and Alpine's build
-does not do.
+The device manager loads modules (`amdgpu` included) and reports hotplug.
+`rcS` uses the first one installed:
 
-BusyBox `mdev` works too: `apk add libudev-zero` alone, from this repository,
-with neither `mdevd` nor `eudev` installed. It ships
-`/usr/libexec/libudev-zero-mdev`, a relay that runs `mdev` for each kernel event
-and then hands the event on to libudev-zero, as `mdevd -O 4` does; `mdev -d`
-cannot. `rcS` starts it and loads the modules of the devices already present.
-Nodes get their modes from Alpine's `/etc/mdev.conf`, whose `$MODALIAS` rule
-also loads modules for devices plugged in later.
+| Install | Runs |
+|---|---|
+| `mdevd libudev-zero` | `mdevd -O 4` |
+| `eudev` | `udevd` |
+| `libudev-zero` | BusyBox `mdev` through libudev-zero's relay |
+| nothing | `mdev -d`, no module loading: use `/etc/modules-load.d` |
 
-ROCm needs access to `/dev/kfd`: with eudev,
-`KERNEL=="kfd", GROUP="video", MODE="0660"` in `/etc/udev/rules.d/70-kfd.rules`;
-with mdev, `kfd root:video 0660` in `/etc/mdev.conf`.
+Take `libudev-zero` from this repository: unlike Alpine's, it shows sound
+cards to PipeWire and ships the mdev relay.
+
+ROCm needs `/dev/kfd`: `KERNEL=="kfd", GROUP="video", MODE="0660"` in
+`/etc/udev/rules.d/70-kfd.rules` with eudev, `kfd root:video 0660` in
+`/etc/mdev.conf` otherwise.
 
 ## Containers
 
@@ -215,40 +171,31 @@ chmod 755 /etc/service/docker/run
 
 ## Updating
 
-The image's own packages (`busylinux-init`, `libudev-zero` and the kernel)
-come from its local repository, so `apk upgrade` alone never changes them.
-Rebuild them on the machine from an up-to-date checkout, as root:
+`apk upgrade` never touches this repository's packages. Rebuild them on the
+machine, as root:
 
 ```sh
 git pull
-./update.sh            # everything in pkgs/ but the kernel
-./kernel-update.sh     # the kernel
+./update.sh            # pkgs/ except the kernel
+./kernel-update.sh     # the kernel; the old one stays as vmlinuz-previous
 ```
 
-`update.sh` builds each recipe, signs the package with `/root/keys/local.rsa`
-(created and trusted on first use), adds it to `/var/lib/busylinux/repo` and
-upgrades what is installed; packages not installed yet, like `libudev-zero`,
-are only added. The release is one past the installed one, so local edits to a
-recipe install too. Files under `/etc` that you have changed are kept, with
-the new version beside them as `.apk-new`. Anything it installs to build
-(`build-base`, `git`, `openssl`) is removed again afterwards; name recipes to
-update only those.
-
-`kernel-update.sh` does the same for the kernel, and keeps the running one as
-`vmlinuz-previous`. `--version X.Y.Z --sha256 SUM` moves to another release
-(the sum is in kernel.org's `sha256sums.asc`). Both take `--help`.
+Both sign with `/root/keys/local.rsa` (created on first use), keep changed
+`/etc` files (new ones land as `.apk-new`) and remove the build tools they
+installed. `kernel-update.sh --version X.Y.Z --sha256 SUM` switches release;
+`--vm` adds the VM drivers. Both take `--help`.
 
 ## License
 
-The build system and `pkgs/busylinux-init/` are MIT. The kernel built by
-`pkgs/linux-busylinux/` is GPL-2.0-only and not distributed here, only the
-recipe. Everything else in an image comes from Alpine under its own licenses.
+The build system and `pkgs/busylinux-init/` are MIT. The kernel is
+GPL-2.0-only; only its recipe is here. Everything else comes from Alpine under
+its own licenses.
 
 ## Acknowledgements
 
-- [Alpine Linux](https://alpinelinux.org/) — musl, BusyBox, apk-tools and
-  everything above the kernel.
-- [Limine](https://limine-bootloader.org/) — the boot loader.
-- [BusyBox](https://busybox.net/) — init, the shell and most of the userland.
-- Substantial parts of the build system, installer and documentation were
-  written with [Claude](https://claude.ai) (Anthropic).
+- [Alpine Linux](https://alpinelinux.org/): musl, BusyBox, apk-tools and the
+  userland.
+- [Limine](https://limine-bootloader.org/): the boot loader.
+- [BusyBox](https://busybox.net/): init, the shell and most tools.
+- Much of the build system, installer and documentation was written with
+  [Claude](https://claude.ai) (Anthropic).

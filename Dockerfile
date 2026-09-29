@@ -1,15 +1,16 @@
-# The image and the package snapshot share a date, so rebuilding this file
-# installs the same toolchain every time. Move both together.
-ARG ARCH_IMAGE=archlinux:base-devel-20260920.0.596911
-FROM ${ARCH_IMAGE}
-ARG ARCH_SNAPSHOT=2026/09/20
+# Alpine's stable release, pinned by digest. Its apk-tools builds and signs the
+# packages; the image itself follows ALPINE_BRANCH (edge by default). The v3.24
+# branch gets fixes but no new versions, so rebuilding this file installs the
+# same toolchain. Move the tag and digest together.
+ARG ALPINE_IMAGE=alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM ${ALPINE_IMAGE}
 
-RUN echo "Server = https://archive.archlinux.org/repos/${ARCH_SNAPSHOT}/\$repo/os/\$arch" \
-        > /etc/pacman.d/mirrorlist \
-    && pacman -Syu --noconfirm --needed \
-        base-devel bc cpio curl e2fsprogs git kmod libelf \
-        meson ncurses ninja openssl perl xz zlib zstd \
-    && rm -rf /var/cache/pacman/pkg/*
+# build.sh is bash and uses GNU find, sort and tar; the kernel needs the
+# rest (libelf for objtool, OpenSSL to sign modules, ncurses for menuconfig).
+RUN apk add --no-cache \
+        bash bc bison build-base coreutils cpio curl diffutils e2fsprogs \
+        elfutils-dev findutils flex gawk git grep gzip kmod linux-headers \
+        ncurses-dev openssl openssl-dev perl sed tar xz zlib-dev zstd
 
 COPY build.sh /usr/local/bin/build.sh
 COPY pkgs     /usr/local/share/busylinux/pkgs

@@ -1,6 +1,5 @@
 version=1.0.4
-# Above Alpine's own libudev-zero-1.0.4-r1, so apk takes this build. When
-# Alpine moves to a newer version, move this recipe with it.
+# Above Alpine's 1.0.4-r1, so apk prefers this build.
 release=101
 desc="libudev replacement for mdevd and BusyBox mdev, with sound cards visible to PipeWire"
 url=https://github.com/illiliti/libudev-zero

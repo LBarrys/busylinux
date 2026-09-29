@@ -9,8 +9,7 @@ mkdir -p /dev/pts /dev/shm /run/lock
 mountpoint -q /dev/pts || mount -t devpts -o gid=5,mode=620 devpts /dev/pts
 mountpoint -q /dev/shm || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /dev/shm
 mkdir -p /run/user && chmod 1777 /run/user
-# Bash's process substitution and anything that opens /dev/stdin need these.
-# eudev's udevd makes them; mdev and mdevd do not, and devtmpfs never does.
+# udevd makes these; mdev, mdevd and devtmpfs do not.
 ln -sfn /proc/self/fd /dev/fd
 ln -sf /proc/self/fd/0 /dev/stdin
 ln -sf /proc/self/fd/1 /dev/stdout
@@ -59,10 +58,7 @@ for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
 done
 
 if command -v mdevd > /dev/null 2>&1; then
-    # mdevd hands every event it has handled on to netlink group 4, where
-    # libudev-zero listens. The replay of the devices already present waits
-    # for mdevd to handle each one, so it starts only once mdevd says it is
-    # ready; an mdevd that exits first leaves the FIFO empty, and mdev runs.
+    # -O 4 rebroadcasts to libudev-zero; coldplug waits until mdevd is ready.
     mkfifo /run/mdevd-ready
     mdevd -O 4 -D 3 3> /run/mdevd-ready &
     if read -r _ < /run/mdevd-ready; then
@@ -78,11 +74,7 @@ elif [ -x /sbin/udevd ]; then
     udevadm trigger --type=devices --action=add
     udevadm settle -t 10
 elif [ -x /usr/libexec/libudev-zero-mdev ]; then
-    # BusyBox mdev, run by libudev-zero's relay: it hands each event on to
-    # libudev-zero once mdev has handled it, as mdevd -O 4 does. The relay
-    # listens before it returns; mdev -s then makes the nodes of the devices
-    # already present, and their modules load by alias. What those modules
-    # add comes through the relay like any other event.
+    # libudev-zero's relay runs mdev per event and rebroadcasts like mdevd -O 4.
     /usr/libexec/libudev-zero-mdev
     mdev -s
     find /sys/devices -name modalias -type f -print0 | xargs -0 cat 2>/dev/null |
@@ -99,14 +91,11 @@ for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
     done < "$conf"
 done
 
-# The device manager applies its own table to every node it finds; give these
-# the modes their users need: Wine's NT sync objects for everyone (the
-# kernel's own choice), uinput for the input group (Steam).
+# Modes the device manager does not set.
 if [ -c /dev/ntsync ]; then chmod 666 /dev/ntsync; fi
 if [ -c /dev/uinput ]; then chgrp input /dev/uinput && chmod 660 /dev/uinput; fi
 
-# The firewall fails closed: /etc/service/dhcp brings no interface up while
-# /etc/nftables.conf exists and no ruleset is loaded.
+# Fails closed: sv-dhcp keeps the network down until a ruleset loads.
 if [ -f /etc/nftables.conf ]; then
     if ! command -v nft > /dev/null 2>&1; then
         echo "rcS: nft is missing; the network stays down"
@@ -117,7 +106,6 @@ fi
 
 ip link set lo up
 
-# TRIM every ext4 file system once, a minute after boot.
 (sleep 60
  awk '$3 == "ext4" { print $2 }' /proc/mounts | while read -r mp; do
      fstrim "$mp" || :

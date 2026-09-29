@@ -1,15 +1,7 @@
 /*
- * libudev-zero-mdev: BusyBox mdev as the device manager for libudev-zero.
- *
- * Listens for kernel uevents, runs BusyBox mdev on each one (device nodes,
- * their modes and the modprobe rule of /etc/mdev.conf) and only then passes
- * the event on to netlink group 4, where libudev-zero's monitors listen.
- * That is what mdevd -O 4 does and mdev -d cannot. Events are handled one at
- * a time, in order, so a program told about a device finds its node in place
- * with its final mode.
- *
- * Returns once it listens, leaving the daemon in the background, so nothing
- * the caller does afterwards (mdev -s, loading modules) goes unseen.
+ * libudev-zero-mdev: runs BusyBox mdev for each kernel uevent, then
+ * rebroadcasts it to netlink group 4 for libudev-zero, as mdevd -O 4 does.
+ * Returns once listening; the daemon stays in the background.
  *
  * SPDX-License-Identifier: ISC
  */
@@ -24,7 +16,7 @@
 #include <unistd.h>
 #include <linux/netlink.h>
 
-#define MAX_ENV 64 /* the kernel's UEVENT_NUM_ENVP */
+#define MAX_ENV 64 /* UEVENT_NUM_ENVP */
 
 static void mdev(char *arg, char **env)
 {
@@ -49,7 +41,6 @@ int main(void)
         perror("libudev-zero-mdev: socket");
         return 1;
     }
-    /* Room for the burst of events a GPU driver makes as it loads. */
     if (setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &size, sizeof(size)) < 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
     if (bind(fd, (struct sockaddr *)&kernel, sizeof(kernel)) < 0) {
@@ -88,17 +79,16 @@ int main(void)
         int n = 0;
 
         if (len < 0) {
-            /* Events were lost: bring the nodes up to date at least. */
+            /* Events were lost: resync the nodes. */
             if (errno == ENOBUFS)
                 mdev("-s", scan_env);
             continue;
         }
         if (msg.msg_flags & MSG_TRUNC || from.nl_pid != 0)
-            continue; /* only whole messages, and only from the kernel */
+            continue; /* whole messages from the kernel only */
         buf[len] = '\0';
 
-        /* "ACTION@DEVPATH", then KEY=VALUE strings: those are mdev's
-         * environment, as when the kernel runs it as its hotplug helper. */
+        /* The KEY=VALUE strings are mdev's environment. */
         env[n++] = scan_env[0];
         for (p = buf; p < buf + len && n <= MAX_ENV; p += strlen(p) + 1)
             if (strchr(p, '='))

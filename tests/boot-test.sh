@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
-# Boots a finished build under QEMU and checks it over the serial console:
-# login, the firewall, the fail-closed network, the services, device modes,
-# updating busylinux-init with update.sh, and a clean shutdown when the ACPI
-# power button is pressed.
-#
-#     tests/boot-test.sh [OUT_DIR]      (default: out)
-#
-# Needs qemu-system-x86_64, debugfs and openssl; uses KVM when /dev/kvm is writable. Exits non-zero
-# on the first failed check and leaves the console log in OUT_DIR/boot-test.log.
+# Boots a build under QEMU and checks it over the serial console.
+# Usage: tests/boot-test.sh [OUT_DIR]. The log goes to OUT_DIR/boot-test.log.
 set -euo pipefail
 
 OUT=${1:-out}
@@ -34,11 +27,9 @@ fail() {
     exit 1
 }
 
-# The console log without carriage returns and terminal escapes (ash asks the
-# terminal for the cursor position after every prompt).
+# The log without CRs and escapes (ash queries the cursor after each prompt).
 console() { tr -d '\r' < "$log" | sed 's/\x1b\[[0-9;?]*[A-Za-z]//g'; }
 
-# Wait until the console log shows $1 (an extended regex) or $2 seconds pass.
 wait_for() {
     local deadline=$((SECONDS + $2))
     while [ "$SECONDS" -lt "$deadline" ]; do
@@ -51,9 +42,7 @@ wait_for() {
 
 send() { printf '%s\r' "$*" > "$work/serial.in"; }
 
-# Run a command in the guest; it must print CHECK-$1 when the check passes.
-# The marker is assembled by printf, so the echoed command line never
-# contains it and cannot satisfy the match by itself.
+# printf builds the marker, so the echoed command line cannot match it.
 check() {
     local name=$1; shift
     send "$* && printf 'CHECK-%s\\n' $name"
@@ -63,8 +52,7 @@ check() {
 
 cp --sparse=always "$OUT/disk.img" "$work/disk.img"
 
-# A checkout in /root/busylinux and a signing key, as on an installed machine
-# where update.sh has run before, so the guest can update itself offline.
+# A checkout and a signing key, so update.sh can run offline in the guest.
 repo=$(cd "$(dirname "$0")/.." && pwd)
 openssl genrsa -out "$work/local.rsa" 2048 2>/dev/null
 openssl rsa -in "$work/local.rsa" -pubout -out "$work/local.rsa.pub" 2>/dev/null
@@ -122,19 +110,15 @@ check ntsync     '[ "$(stat -c %a /dev/ntsync)" = 666 ]'
 check uinput     '[ "$(stat -c %G:%a /dev/uinput)" = input:660 ]'
 check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
 
-# Fail closed: with the ruleset gone, the dhcp service must refuse to start.
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload     'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
 check libudev-zero 'apk add --no-network -q libudev-zero >/dev/null 2>&1 && apk info -e libudev-zero >/dev/null && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
-# BusyBox mdev through libudev-zero's relay, as rcS runs it when mdevd is not
-# installed: a USB sound card plugged in now gets its module and its node.
+# mdev through libudev-zero's relay: a hot-plugged sound card gets module and node.
 check mdev-relay 'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
 echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
 check hotplug    'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
 check update     'b=$(apk list --installed busylinux-init) && sh /root/busylinux/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list --installed busylinux-init) && [ "$a" != "$b" ] && [ -x /etc/init.d/rcS ] || { tail -n 20 /tmp/update.log; false; }'
 
-# The power button, on the updated busylinux-init: QEMU raises the ACPI
-# event, acpid runs poweroff, init runs rcK, and the machine turns itself off.
 echo system_powerdown > "$work/mon.in"
 deadline=$((SECONDS + 90))
 while kill -0 "$qpid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do sleep 1; done

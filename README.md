@@ -44,7 +44,7 @@ or install one of those.
 
 ## Building
 
-Everything is compiled inside an Arch Linux container:
+Everything is compiled inside an Alpine Linux container:
 
 ```sh
 docker build -t busylinux-builder .
@@ -69,9 +69,10 @@ docker run --rm -it \
 | `JOBS=N` | default `nproc` |
 | `IMAGE_SIZE=16G` | size of the sparse `disk.img` (default 8G) |
 
-Recipes in `pkgs/` whose `meta` lists `makedepends` are built in an Alpine
-root with `build-base` rather than with the container's glibc toolchain, so
-they can ship programs and libraries for the image.
+Recipes in `pkgs/` whose `meta` lists `makedepends` are built in a root of
+`ALPINE_BRANCH` with `build-base`, so the programs and libraries they ship link
+against what the image has; the kernel is built with the container's own
+toolchain.
 
 `out/` then holds `vmlinuz`, `initramfs.cpio.gz` and `amd-ucode.img`;
 `rootfs.tar.gz`, which `install.sh` unpacks; `disk.img`, the same root file
@@ -89,9 +90,9 @@ To restore it into a fresh volume, put it back at `keys/busylinux.rsa` and its
 public half (`openssl rsa -pubout`) at `keys/pub/busylinux.rsa.pub` before the
 first build.
 
-The `Dockerfile` pins the Arch image and the matching
-[Arch Linux Archive](https://archive.archlinux.org/) snapshot; move
-`ARCH_IMAGE` and `ARCH_SNAPSHOT` together.
+The `Dockerfile` pins an Alpine stable release by tag and digest
+(`ALPINE_IMAGE`); its apk-tools builds and signs the packages. Move the tag and
+digest together.
 
 ## Running under QEMU
 

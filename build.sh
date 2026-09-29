@@ -15,16 +15,12 @@ ROOT_LABEL=BUSYLINUX_ROOT
 LOCAL_REPO_DIR=/var/lib/busylinux/repo
 JOBS=${JOBS:-$(nproc)}
 
-APK_GIT=https://github.com/alpinelinux/apk-tools
-APK_REF=v3.0.8
-
 TOP=/build
 PKGS=${PKGS_DIR:-/usr/local/share/busylinux/pkgs}
 CACHE=$TOP/cache
 SRC=$CACHE/sources
 REPO=$CACHE/packages
 KEYS=$CACHE/keys
-HOSTDIR=$CACHE/host
 BLD=$TOP/work
 ROOTFS=$TOP/rootfs
 OUT=$TOP/out
@@ -152,22 +148,13 @@ checksum_recipe() {
     info "$recipe: wrote $(grep -c . "$PKGS/$recipe/sha256sums") checksums"
 }
 
-build_host_apk() {
-    APK=$HOSTDIR/bin/apk
-    if [ -x "$APK" ]; then
-        info "using cached $("$APK" --version 2>&1 | tr -d ,)"
-        return
-    fi
-    log "Building apk-tools $APK_REF for the container"
-    rm -rf "$BLD/apk-host"
-    git_clone "$APK_GIT#$APK_REF" "$BLD/apk-host"
-    ( cd "$BLD/apk-host"
-      meson setup --prefix=/usr -Ddefault_library=static -Dlua=disabled \
-          -Dpython=disabled -Dtests=disabled -Ddocs=disabled build > /dev/null
-      ninja -C build > /dev/null )
-    mkdir -p "$HOSTDIR/bin"
-    install -m 755 "$BLD/apk-host/build/src/apk" "$APK"
-    rm -rf "$BLD/apk-host"
+# The container's own apk-tools, which must be version 3 for mkpkg and mkndx.
+host_apk() {
+    APK=$(command -v apk) || die "apk is not installed in the container"
+    case $("$APK" --version) in
+        "apk-tools 3."*) info "using $("$APK" --version | cut -d, -f1)" ;;
+        *) die "apk-tools 3 is needed, the container has $("$APK" --version)" ;;
+    esac
 }
 
 setup_key() {
@@ -221,9 +208,10 @@ apk_root() {
     apk_host --root "$root" --repositories-file "$BLD/repositories" "$@"
 }
 
-# The container's toolchain is glibc's. A recipe that builds programs or
-# libraries for the image lists makedepends, and is built instead in an Alpine
-# root holding busybox, build-base and those, entered with chroot.
+# The container is an Alpine stable release; the image follows ALPINE_BRANCH.
+# A recipe that builds programs or libraries for the image lists makedepends,
+# and is built in a root of that branch holding busybox, build-base and those,
+# entered with chroot, so it links against the libraries the image will have.
 build_in_alpine() {
     local srcdir=$1 destdir=$2 root=$BLD/alpine-root base=${ALPINE_MIRROR/https:/http:}
     rm -rf "$root"
@@ -384,7 +372,7 @@ main() {
     log "Preparing"
     rm -rf "$ROOTFS" "$BLD/initramfs"
     mkdir -p "$ROOTFS"
-    build_host_apk
+    host_apk
     setup_key
     fetch_alpine_keys
     export JOBS ARCH MENUCONFIG=${MENUCONFIG:-0} VM_SUPPORT=${VM_SUPPORT:-0}

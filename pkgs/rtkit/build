@@ -1,0 +1,8 @@
+#!/bin/sh -e
+patch -p1 < musl-sched.patch
+patch -p1 < no-polkit.patch
+meson setup --prefix=/usr --libexecdir=/usr/libexec --buildtype=release \
+    -Dlibsystemd=disabled -Dinstalled_tests=false build
+meson compile -C build
+DESTDIR="$1" meson install --no-rebuild -C build
+rm -rf "$1/usr/share/polkit-1" "$1/usr/lib/systemd" "$1/usr/share/man"

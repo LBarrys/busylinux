@@ -181,7 +181,7 @@ machine, as root:
 
 ```sh
 git pull
-./update.sh            # pkgs/ except the kernel
+./update.sh rtkit      # the named recipes; no name lists them, --all does all
 ./kernel-update.sh     # the kernel; the old one stays as vmlinuz-previous
 ```
 

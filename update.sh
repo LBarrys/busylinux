@@ -5,15 +5,17 @@ usage() {
     cat <<'EOT'
 Build this repository's packages on the machine itself and install them.
 
-    update.sh [options] [recipe...]
+    update.sh [options] recipe...
+    update.sh [options] --all
 
-Runs as root from a checkout of this repository. Builds each recipe in pkgs/
-(default: all of them but the kernel, which kernel-update.sh handles), signs
+Runs as root from a checkout of this repository. Builds the named recipes in
+pkgs/ (--all: every one but the kernel, which kernel-update.sh handles), signs
 the packages, adds them to the local repository and upgrades the ones that are
-installed. Files under /etc that you have changed are kept; apk puts the new
-version beside them as .apk-new.
+installed. Without a name it lists the recipes. Files under /etc that you have
+changed are kept; apk puts the new version beside them as .apk-new.
 
 Options:
+    --all           every recipe but the kernel
     --workdir DIR   build directory (default: /var/tmp/busylinux-update)
     --key FILE      signing key (default: /root/keys/local.rsa, created)
     --repo DIR      local repository (default: /var/lib/busylinux/repo/x86_64)
@@ -26,7 +28,7 @@ EOT
 
 WORK=/var/tmp/busylinux-update KEY=/root/keys/local.rsa
 REPO=/var/lib/busylinux/repo/x86_64
-INSTALL=1 KEEP_TOOLS=0 ASSUME_YES=0 ADDED=''
+INSTALL=1 KEEP_TOOLS=0 ASSUME_YES=0 ALL=0 ADDED=''
 
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
@@ -39,6 +41,7 @@ while [ $# -gt 0 ]; do
         --repo)       REPO=$2; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
         --keep-tools) KEEP_TOOLS=1; shift ;;
+        --all)        ALL=1; shift ;;
         --yes|-y)     ASSUME_YES=1; shift ;;
         -h|--help)    usage; exit 0 ;;
         -*)           die "unknown option: $1" ;;
@@ -50,17 +53,6 @@ done
 
 PKGS=$(cd "$(dirname "$0")" && pwd -P)/pkgs
 [ -d "$PKGS" ] || die "no pkgs/ beside $0; run this from a checkout"
-
-if [ $# -eq 0 ]; then
-    for d in "$PKGS"/*/; do
-        d=${d%/}; d=${d##*/}
-        [ "$d" = linux-busylinux ] || set -- "$@" "$d"
-    done
-fi
-for r in "$@"; do
-    [ -f "$PKGS/$r/meta" ] || die "no recipe pkgs/$r"
-    [ "$r" != linux-busylinux ] || die "use kernel-update.sh for the kernel"
-done
 
 # A meta field, read in a subshell so recipes cannot leak into each other.
 # shellcheck disable=SC2034
@@ -87,6 +79,28 @@ remove_tools() {
     apk del $ADDED > /dev/null 2>&1 && info "removed:$ADDED" ||
         info "could not remove all of:$ADDED -- something else needs them"
 }
+
+recipes() {
+    for d in "$PKGS"/*/; do
+        d=${d%/}; d=${d##*/}
+        [ "$d" = linux-busylinux ] || printf '%s\n' "$d"
+    done
+}
+
+if [ $# -eq 0 ] && [ "$ALL" = 1 ]; then
+    # shellcheck disable=SC2046
+    set -- $(recipes)
+elif [ $# -eq 0 ]; then
+    log "Recipes (version in pkgs/, installed)"
+    for r in $(recipes); do
+        info "$r $(field "$r" version)-r$(field "$r" release), installed: $(installed "$r" || :)"
+    done
+    die "name the recipes to update, or pass --all"
+fi
+for r in "$@"; do
+    [ -f "$PKGS/$r/meta" ] || die "no recipe pkgs/$r"
+    [ "$r" != linux-busylinux ] || die "use kernel-update.sh for the kernel"
+done
 
 log "BusyLinux packages: $*"
 for r in "$@"; do

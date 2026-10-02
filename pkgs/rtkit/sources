@@ -1,0 +1,3 @@
+git+https://gitlab.freedesktop.org/pipewire/rtkit.git#v0.14
+files/musl-sched.patch
+files/no-polkit.patch

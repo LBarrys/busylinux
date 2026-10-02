@@ -1,0 +1,8 @@
+version=0.14
+# Above Alpine's 0.14-r0, so apk prefers this build.
+release=100
+desc="Realtime scheduling on request, for members of the rtkit group (no polkit)"
+url=https://gitlab.freedesktop.org/pipewire/rtkit
+license="GPL-3.0-only AND MIT"
+depends="dbus"
+makedepends="dbus-dev libcap-dev meson xxd"

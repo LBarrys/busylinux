@@ -101,7 +101,7 @@ apk add tzdata kbd-bkeymaps      # for --timezone and --keymap
   --timezone Europe/Berlin --keymap de/de-latin1
 ```
 
-`--user` joins `video input audio seat wheel`; `--help` lists the rest.
+`--user` joins `video input audio seat wheel rtkit`; `--help` lists the rest.
 
 ## Boot and services
 
@@ -152,6 +152,11 @@ The device manager loads modules (`amdgpu` included) and reports hotplug.
 
 Take `libudev-zero` from this repository: unlike Alpine's, it shows sound
 cards to PipeWire and ships the mdev relay.
+
+`rtkit` also comes from this repository, built without polkit: it gives
+PipeWire's audio threads realtime priority, which stops crackling under load,
+for members of the `rtkit` group (`addgroup alice rtkit`, then log in again).
+D-Bus starts it on demand.
 
 ROCm needs `/dev/kfd`: `KERNEL=="kfd", GROUP="video", MODE="0660"` in
 `/etc/udev/rules.d/70-kfd.rules` with eudev, `kfd root:video 0660` in

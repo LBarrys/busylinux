@@ -1,0 +1,66 @@
+--- a/rtkit-daemon.c
++++ b/rtkit-daemon.c
+@@ -1117,7 +1117,50 @@
+         return -EIO;
+ }
+ 
++/* BusyLinux: no polkit. Root and processes that have the rtkit group,
++ * as their own or a supplementary group, are allowed; Alpine's polkit rule
++ * for rtkit allows the same. The group is looked up before the chroot. */
++static gid_t access_gid = (gid_t) -1;
++
++static int verify_group(struct rtkit_user *u, struct process *p) {
++        char fn[64], line[4096];
++        FILE *f;
++        int ret = -EPERM;
++
++        if (u->uid == 0)
++                return 0;
++        if (access_gid == (gid_t) -1)
++                return -EPERM;
++
++        snprintf(fn, sizeof(fn), "%s/%llu/status", get_proc_path(), (unsigned long long) p->pid);
++        if (!(f = fopen(fn, "re")))
++                return -errno;
++
++        while (ret != 0 && fgets(line, sizeof(line), f)) {
++                char *s, *e;
++
++                if (strncmp(line, "Gid:", 4) != 0 && strncmp(line, "Groups:", 7) != 0)
++                        continue;
++
++                for (s = strchr(line, ':') + 1;; s = e) {
++                        unsigned long g = strtoul(s, &e, 10);
++
++                        if (e == s)
++                                break;
++                        if ((gid_t) g == access_gid) {
++                                ret = 0;
++                                break;
++                        }
++                }
++        }
++
++        fclose(f);
++        return ret;
++}
++
+ static int verify_polkit(DBusConnection *c, struct rtkit_user *u, struct process *p, const char *action) {
++        return verify_group(u, p);
++
+         DBusError error;
+         DBusMessage *m = NULL, *r = NULL;
+         const char *unix_process = "unix-process";
+@@ -1706,6 +1749,12 @@
+ static int drop_privileges(void) {
+         struct passwd *pw = NULL;
+         int r;
++        struct group *gr;
++
++        if ((gr = getgrnam(username)))
++                access_gid = gr->gr_gid;
++        else
++                syslog(LOG_WARNING, "Group '%s' not found; only root may use rtkit.\n", username);
+ 
+         if (do_drop_privileges) {
+ 

@@ -3,325 +3,135 @@ set -eu
 
 usage() {
     cat <<'EOT'
-Install BusyLinux onto a disk. UEFI only.
+Installs BusyLinux from out/rootfs.tar.gz. UEFI only; erases the whole disk.
 
-    install.sh --disk /dev/nvme0n1
+    install.sh --disk /dev/nvme0n1 [--user NAME] [--hostname NAME]
+               [--timezone Europe/Berlin] [--keymap de/de-latin1] [--yes]
 
-Writes a GPT with two partitions; nothing else on the disk survives:
-
-    1   1 GiB    EFI system  FAT32, mounted at /boot, holds the kernel and Limine
-    2   rest     root        ext4, labelled BUSYLINUX_ROOT
-
-Options:
-    --disk DEV          the disk to install to (required)
-    --dir DIR           where out/ is (default: ./out, then the script's dir)
-    --esp-size SIZE     EFI system partition size (default 1G)
-    --root-size SIZE    root partition size (default: the rest of the disk)
-    --hostname NAME     default busylinux
-    --timezone ZONE     e.g. Europe/Berlin (default UTC); needs tzdata on the
-                        system running this script
-    --keymap LAYOUT/VARIANT
-                        console keymap, e.g. de/de-latin1 (default: the
-                        kernel's US map); needs kbd-bkeymaps on the system
-                        running this script
-    --user NAME         create this user in video/input/audio/seat/wheel/rtkit,
-                        set a password
-    --no-nvram          do not add a UEFI boot entry
-    --yes               do not ask for confirmation
+Partition 1 is a 1 GiB ESP at /boot (kernel and Limine), partition 2 an ext4
+root labelled BUSYLINUX_ROOT. --timezone needs tzdata and --keymap needs
+kbd-bkeymaps on the system running this script. --user joins video, input,
+audio, seat, wheel and rtkit.
 EOT
 }
 
-DISK='' DIR='' ESP_SIZE=1G ROOT_SIZE='' HOSTNAME=busylinux USER_NAME=''
-TIMEZONE='' KEYMAP=''
-NVRAM=1 ASSUME_YES=0
-ROOT_LABEL=BUSYLINUX_ROOT
-ESP_LABEL=BUSYLINUX
-MNT=''
-
+DISK='' USER_NAME='' HOSTNAME=busylinux TIMEZONE='' KEYMAP='' YES=0 MNT=''
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
-info() { printf '\033[1;34m  > %s\033[0m\n' "$*"; }
-
-cleanup() {
-    [ -n "$MNT" ] || return 0
-    umount "$MNT/boot" 2>/dev/null || :
-    umount "$MNT" 2>/dev/null || :
-    rmdir "$MNT" 2>/dev/null || :
-}
-trap cleanup EXIT INT TERM
 
 while [ $# -gt 0 ]; do
     case $1 in
-        --disk)      DISK=$2; shift 2 ;;
-        --dir)       DIR=$2; shift 2 ;;
-        --esp-size)  ESP_SIZE=$2; shift 2 ;;
-        --root-size) ROOT_SIZE=$2; shift 2 ;;
-        --hostname)  HOSTNAME=$2; shift 2 ;;
-        --timezone)  TIMEZONE=$2; shift 2 ;;
-        --keymap)    KEYMAP=$2; shift 2 ;;
-        --user)      USER_NAME=$2; shift 2 ;;
-        --no-nvram)  NVRAM=0; shift ;;
-        --yes|-y)    ASSUME_YES=1; shift ;;
-        -h|--help)   usage; exit 0 ;;
-        *)           die "unknown option: $1" ;;
+        --disk)     DISK=$2; shift 2 ;;
+        --user)     USER_NAME=$2; shift 2 ;;
+        --hostname) HOSTNAME=$2; shift 2 ;;
+        --timezone) TIMEZONE=$2; shift 2 ;;
+        --keymap)   KEYMAP=$2; shift 2 ;;
+        --yes|-y)   YES=1; shift ;;
+        -h|--help)  usage; exit 0 ;;
+        *)          die "unknown option: $1" ;;
     esac
 done
 
 [ "$(id -u)" = 0 ] || die "run this as root"
-[ -n "$DISK" ]     || die "no --disk given (try --help)"
-[ -b "$DISK" ]     || die "$DISK is not a block device"
-
-case $HOSTNAME in
-    ''|[.-]*|*[!A-Za-z0-9.-]*|*.) die "--hostname: letters, digits, '-' and '.' only" ;;
-esac
-
-ZONEFILE=''
+[ -b "$DISK" ] || die "--disk: '$DISK' is not a block device (try --help)"
+case $HOSTNAME in ''|[.-]*|*[!A-Za-z0-9.-]*|*.) die "--hostname: letters, digits, - and . only" ;; esac
 case $TIMEZONE in
-    ''|UTC) ;;
+    ''|UTC) TIMEZONE='' ;;
     /*|*..*|*[!A-Za-z0-9_+/-]*) die "--timezone: '$TIMEZONE' is not a zone name" ;;
-    *)  ZONEFILE=/usr/share/zoneinfo/$TIMEZONE
-        [ -f "$ZONEFILE" ] ||
-            die "$ZONEFILE is missing: unknown zone, or tzdata is not installed here (apk add tzdata)" ;;
+    *) [ -f "/usr/share/zoneinfo/$TIMEZONE" ] || die "--timezone: no zone $TIMEZONE (apk add tzdata)" ;;
 esac
-
-KEYFILE=''
 case $KEYMAP in
     '') ;;
-    /*|*/|*/*/*|*..*|*[!A-Za-z0-9_/-]*) die "--keymap: expected LAYOUT/VARIANT, e.g. de/de-latin1" ;;
-    */*) KEYFILE=/usr/share/bkeymaps/$KEYMAP.bmap.gz
-        [ -f "$KEYFILE" ] ||
-            die "$KEYFILE is missing: unknown keymap, or kbd-bkeymaps is not installed here (apk add kbd-bkeymaps)" ;;
-    *)  die "--keymap: expected LAYOUT/VARIANT, e.g. de/de-latin1" ;;
+    */*/*|*..*|*[!A-Za-z0-9_/-]*|*/|/*) die "--keymap: expected LAYOUT/VARIANT" ;;
+    */*) [ -f "/usr/share/bkeymaps/$KEYMAP.bmap.gz" ] ||
+             die "--keymap: no keymap $KEYMAP (apk add kbd-bkeymaps)" ;;
+    *) die "--keymap: expected LAYOUT/VARIANT" ;;
 esac
-
-if [ -z "$DIR" ]; then
-    for d in ./out "$(dirname "$0")/out" "$(dirname "$0")"; do
-        if [ -f "$d/rootfs.tar.gz" ]; then DIR=$d; break; fi
-    done
-fi
-[ -n "$DIR" ] || die "cannot find rootfs.tar.gz; pass --dir"
-for f in rootfs.tar.gz initramfs.cpio.gz; do
-    [ -f "$DIR/$f" ] || die "$DIR/$f is missing -- run the build first"
+TAR=''
+for d in ./out "$(dirname "$0")/out"; do [ -f "$d/rootfs.tar.gz" ] && TAR=$d/rootfs.tar.gz && break; done
+[ -n "$TAR" ] || die "no out/rootfs.tar.gz; run the build first"
+for t in sgdisk mkfs.vfat mkfs.ext4; do
+    command -v "$t" > /dev/null || die "$t is missing (apk add sgdisk dosfstools e2fsprogs)"
 done
 
-need() { command -v "$1" > /dev/null 2>&1 || die "$1 is missing${2:+ (install $2)}"; }
-need sgdisk   "sgdisk (Alpine: apk add sgdisk)"
-need mkfs.vfat dosfstools
-need mkfs.ext4 e2fsprogs
-need tar
-
-if [ ! -d /sys/firmware/efi/efivars ]; then
-    NVRAM=0
-    info "not booted via UEFI: installing the removable path only"
-fi
-
-log "About to erase $DISK"
-sgdisk --print "$DISK" 2>/dev/null | tail -n +5 || :
-printf '\n'
-if [ "$ASSUME_YES" != 1 ]; then
+if [ "$YES" != 1 ]; then
     printf 'Everything on %s will be destroyed. Type the disk name to go on: ' "$DISK"
     read -r answer
     [ "$answer" = "$DISK" ] || die "not confirmed"
 fi
 
 log "Partitioning $DISK"
-wipefs -a "$DISK" > /dev/null 2>&1 || :
 sgdisk --zap-all "$DISK" > /dev/null
-root_end=0
-if [ -n "$ROOT_SIZE" ]; then root_end="+$ROOT_SIZE"; fi
-sgdisk \
-    -n "1:0:+$ESP_SIZE" -t 1:ef00 -c 1:"EFI system" \
-    -n "2:0:$root_end"  -t 2:8300 -c 2:"BusyLinux root" \
+sgdisk -n 1:0:+1G -t 1:ef00 -c 1:"EFI system" -n 2:0:0 -t 2:8300 -c 2:"BusyLinux root" \
     "$DISK" > /dev/null
+case $DISK in *[0-9]) ESP=${DISK}p1 ROOT=${DISK}p2 ;; *) ESP=${DISK}1 ROOT=${DISK}2 ;; esac
+i=0
+while [ ! -b "$ESP" ] || [ ! -b "$ROOT" ]; do
+    [ "$i" -lt 15 ] || die "$ESP and $ROOT never appeared; reboot and try again"
+    partprobe "$DISK" 2>/dev/null || partx -u "$DISK" 2>/dev/null || blockdev --rereadpt "$DISK" 2>/dev/null || :
+    mdev -s 2>/dev/null || udevadm settle 2>/dev/null || :
+    sleep 1; i=$((i + 1))
+done
+mkfs.vfat -F 32 -n BUSYLINUX "$ESP" > /dev/null
+mkfs.ext4 -q -F -L BUSYLINUX_ROOT "$ROOT"
 
-part() { case $DISK in *[0-9]) printf '%sp%s\n' "$DISK" "$1" ;;
-                       *)      printf '%s%s\n'  "$DISK" "$1" ;; esac; }
-ESP=$(part 1) ROOT=$(part 2)
-
-reread() {
-    partprobe "$DISK"            > /dev/null 2>&1 && return 0
-    partx -u "$DISK"             > /dev/null 2>&1 && return 0
-    losetup -c "$DISK"           > /dev/null 2>&1 && return 0
-    blockdev --rereadpt "$DISK"  > /dev/null 2>&1 && return 0
-    return 0
-}
-
-settle() {
-    if command -v udevadm > /dev/null 2>&1; then
-        udevadm settle -t 10 > /dev/null 2>&1 || :
-    elif command -v mdev > /dev/null 2>&1; then
-        mdev -s > /dev/null 2>&1 || :
-    fi
-}
-
-wait_parts() {
-    tries=0
-    while [ ! -b "$ESP" ] || [ ! -b "$ROOT" ]; do
-        if [ "$tries" -ge 15 ]; then
-            die "$ESP and $ROOT never appeared. Reboot and run this again, or
-install parted or util-linux so the partition table can be re-read."
-        fi
-        tries=$((tries + 1)); sleep 1; reread; settle
-    done
-}
-
-reread
-settle
-wait_parts
-
-log "Creating filesystems"
-mkfs.vfat -F 32 -n "$ESP_LABEL" "$ESP" > /dev/null
-mkfs.ext4 -q -F -L "$ROOT_LABEL" "$ROOT"
-sync
-sleep 2
-settle
-wait_parts
-info "$ESP  vfat  $ESP_LABEL"
-info "$ROOT  ext4  $ROOT_LABEL"
-
-log "Unpacking the root filesystem"
+log "Unpacking"
 MNT=$(mktemp -d)
-mount -t ext4 "$ROOT" "$MNT"
-mkdir -p "$MNT/boot"
-mount -t vfat "$ESP" "$MNT/boot"
-tar -xpf "$DIR/rootfs.tar.gz" -C "$MNT" --numeric-owner
-cp "$DIR/initramfs.cpio.gz" "$MNT/boot/"
-if [ -f "$DIR/amd-ucode.img" ]; then cp "$DIR/amd-ucode.img" "$MNT/boot/"; fi
-info "$(du -sh "$MNT" | cut -f1) on $ROOT, $(du -sh "$MNT/boot" | cut -f1) on $ESP"
+trap 'umount "$MNT/boot" "$MNT" 2>/dev/null; rmdir "$MNT"' EXIT
+mount "$ROOT" "$MNT"
+tar -xpf "$TAR" -C "$MNT" --numeric-owner
+# FAT keeps no modes, so /boot is copied rather than unpacked onto the ESP.
+mv "$MNT/boot" "$MNT/boot.new"
+mkdir "$MNT/boot"
+mount "$ESP" "$MNT/boot"
+cp -R "$MNT/boot.new/." "$MNT/boot/"
+rm -rf "$MNT/boot.new"
 
 log "Configuring"
-printf '%s\n' "$HOSTNAME" > "$MNT/etc/hostname"
-host_names=$HOSTNAME
-[ "${HOSTNAME%%.*}" = "$HOSTNAME" ] || host_names="$HOSTNAME ${HOSTNAME%%.*}"
-cat > "$MNT/etc/hosts" <<EOF
-127.0.0.1	localhost localhost.localdomain
-::1		localhost localhost.localdomain
-127.0.1.1	$host_names
-EOF
-info "hostname $HOSTNAME"
-
+echo "$HOSTNAME" > "$MNT/etc/hostname"
+printf '127.0.0.1\tlocalhost\n::1\t\tlocalhost\n127.0.1.1\t%s\n' "$HOSTNAME" > "$MNT/etc/hosts"
 rm -f "$MNT/etc/localtime"
-if [ -n "$ZONEFILE" ]; then
-    cp "$ZONEFILE" "$MNT/etc/localtime"
-    info "timezone $TIMEZONE"
-else
-    info "timezone UTC"
-fi
-
-if [ -n "$KEYFILE" ]; then
-    rm -rf "$MNT/etc/keymap"
+[ -z "$TIMEZONE" ] || cp "/usr/share/zoneinfo/$TIMEZONE" "$MNT/etc/localtime"
+if [ -n "$KEYMAP" ]; then
     mkdir -p "$MNT/etc/keymap"
-    cp "$KEYFILE" "$MNT/etc/keymap/"
-    info "keymap $KEYMAP"
+    cp "/usr/share/bkeymaps/$KEYMAP.bmap.gz" "$MNT/etc/keymap/"
 fi
-
-cat > "$MNT/etc/fstab" <<EOF
-LABEL=$ROOT_LABEL                       /                    ext4     rw,noatime                        0      1
-LABEL=$ESP_LABEL                            /boot                vfat     rw,noatime,fmask=0077,dmask=0077  0      2
-tmpfs                                      /tmp                 tmpfs    rw,nosuid,nodev,size=8G           0      0
+cat > "$MNT/etc/fstab" <<'EOF'
+LABEL=BUSYLINUX_ROOT  /      ext4   rw,noatime                        0 1
+LABEL=BUSYLINUX       /boot  vfat   rw,noatime,fmask=0077,dmask=0077  0 2
+tmpfs                 /tmp   tmpfs  rw,nosuid,nodev,size=8G           0 0
 EOF
-
-log "Installing Limine"
-LIMINE_EFI=$MNT/usr/share/limine/BOOTX64.EFI
-[ -f "$LIMINE_EFI" ] ||
-    die "$LIMINE_EFI is missing -- the image was built without limine-efi-x86_64"
-
-kernel=$(cd "$MNT/boot" && ls vmlinuz-* 2>/dev/null | head -1)
-[ -n "$kernel" ] || die "no kernel in $MNT/boot -- rootfs.tar.gz looks wrong"
 
 mkdir -p "$MNT/boot/EFI/BOOT"
-cp "$LIMINE_EFI" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
-
-ucode=''
-if [ -f "$MNT/boot/amd-ucode.img" ]; then
-    ucode="    module_path: boot():/amd-ucode.img
-"
-fi
-cat > "$MNT/boot/EFI/BOOT/limine.conf" <<EOF
-timeout: 3
-default_entry: 1
-serial: yes
-
-/BusyLinux
-    protocol: linux
-    path: boot():/$kernel
-    cmdline: root=LABEL=$ROOT_LABEL ro
-$ucode    module_path: boot():/initramfs.cpio.gz
-
-/BusyLinux (serial console on ttyS0)
-    protocol: linux
-    path: boot():/$kernel
-    cmdline: root=LABEL=$ROOT_LABEL ro console=tty0 console=ttyS0,115200
-$ucode    module_path: boot():/initramfs.cpio.gz
-
-/Rescue shell (initramfs only)
-    protocol: linux
-    path: boot():/$kernel
-    cmdline: rescue
-$ucode    module_path: boot():/initramfs.cpio.gz
-EOF
-info "$(du -h "$MNT/boot/EFI/BOOT/BOOTX64.EFI" | cut -f1) BOOTX64.EFI + limine.conf"
-
-if [ "$NVRAM" = 1 ] && command -v efibootmgr > /dev/null 2>&1; then
-    efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\? BusyLinux$/\1/p' |
-    while read -r num; do
-        efibootmgr -b "$num" -B > /dev/null 2>&1 || :
-    done
-    if efibootmgr --create --disk "$DISK" --part 1 \
-         --loader '\EFI\BOOT\BOOTX64.EFI' --label BusyLinux > /dev/null 2>&1; then
-        info "added the UEFI boot entry 'BusyLinux'"
-    else
-        info "could not add a UEFI boot entry; the removable path will do"
-    fi
+cp "$MNT/usr/share/limine/BOOTX64.EFI" "$MNT/boot/EFI/BOOT/"
+entry() {
+    printf '\n/%s\n    protocol: linux\n    path: boot():/%s\n    cmdline: %s\n' "$1" "$2" "$3"
+    printf '    module_path: boot():/%s\n' amd-ucode.img initramfs.cpio.gz
+}
+{
+    printf 'timeout: 3\nserial: yes\n'
+    entry BusyLinux vmlinuz-busylinux "root=LABEL=BUSYLINUX_ROOT ro"
+    entry "BusyLinux (serial console)" vmlinuz-busylinux \
+        "root=LABEL=BUSYLINUX_ROOT ro console=tty0 console=ttyS0,115200"
+    entry "BusyLinux (previous kernel)" vmlinuz-previous "root=LABEL=BUSYLINUX_ROOT ro"
+    entry "Rescue shell" vmlinuz-busylinux rescue
+} > "$MNT/boot/EFI/BOOT/limine.conf"
+if [ -d /sys/firmware/efi/efivars ] && command -v efibootmgr > /dev/null; then
+    efibootmgr -c -d "$DISK" -p 1 -l '\EFI\BOOT\BOOTX64.EFI' -L BusyLinux > /dev/null ||
+        echo "no UEFI boot entry; the firmware finds \\EFI\\BOOT\\BOOTX64.EFI by itself"
 fi
 
 if [ -n "$USER_NAME" ]; then
-    log "Creating $USER_NAME"
-    chroot "$MNT" /bin/busybox adduser -D "$USER_NAME"
-    for g in seat wheel rtkit; do
-        chroot "$MNT" /bin/busybox addgroup -S "$g" 2>/dev/null || :
-    done
-    for g in video input audio seat wheel rtkit; do
-        chroot "$MNT" /bin/busybox addgroup "$USER_NAME" "$g" 2>/dev/null || :
-    done
-    if [ -f "$MNT/etc/doas.d/wheel.conf" ]; then
-        info "$USER_NAME is in wheel: doas works (permit persist :wheel)"
-    else
-        info "$USER_NAME is in wheel, but /etc/doas.d/wheel.conf is missing"
-    fi
-    if [ -t 0 ]; then chroot "$MNT" /bin/busybox passwd "$USER_NAME"; fi
+    chroot "$MNT" adduser -D "$USER_NAME"
+    for g in seat wheel rtkit; do chroot "$MNT" addgroup -S "$g" 2>/dev/null || :; done
+    for g in video input audio seat wheel rtkit; do chroot "$MNT" addgroup "$USER_NAME" "$g"; done
 fi
-
 if [ -t 0 ]; then
-    log "Setting the root password"
-    chroot "$MNT" /bin/busybox passwd root ||
-        info "root still has no password; set one after the first boot"
-elif [ -n "$USER_NAME" ]; then
-    chroot "$MNT" /bin/busybox passwd -l root > /dev/null 2>&1 || :
-    sed -i "s|^$USER_NAME:[^:]*:|$USER_NAME::|" "$MNT/etc/shadow"
-    info "root is locked and $USER_NAME has an EMPTY password."
-    info "Log in as $USER_NAME on tty1 and run 'passwd' before anything else."
+    log "Passwords"
+    chroot "$MNT" passwd root
+    [ -z "$USER_NAME" ] || chroot "$MNT" passwd "$USER_NAME"
 else
-    info "WARNING: root has an EMPTY password and getty runs on tty1-3 and ttyS0."
-    info "WARNING: anyone at the keyboard is root. Run 'passwd root' on first boot."
+    echo "root has no password: run passwd after the first boot"
 fi
-
 sync
-log "Done"
-cat <<EOF
-
-  Installed to $DISK
-    $ESP   /boot   FAT32, $kernel + Limine
-    $ROOT   /       ext4, LABEL=$ROOT_LABEL
-
-  Reboot, and in the firmware setup:
-    - turn Secure Boot OFF (this kernel is not signed)
-    - leave CSM off and boot in UEFI mode
-    - EXPO stays on; the kernel needs nothing for it
-
-  First things to do on the new system:
-    apk update
-    apk add linux-firmware-amdgpu
-    echo amdgpu > /etc/modules-load.d/amdgpu.conf
-
-EOF
+log "Done: turn Secure Boot off, then boot $DISK"

@@ -4,6 +4,6 @@ release=101
 desc="libudev replacement for mdevd and BusyBox mdev, with sound cards visible to PipeWire"
 url=https://github.com/illiliti/libudev-zero
 license=ISC
-makedepends="linux-headers"
+makedepends="build-base linux-headers"
 provides="so:libudev.so.1=1"
 provider_priority=20

@@ -1,470 +1,82 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# Builds this repository's packages and a BusyLinux root file system from
+# Alpine edge, inside the builder container. See the README.
+set -eu
 
-ARCH=${ARCH:-x86_64}
 ALPINE_MIRROR=${ALPINE_MIRROR:-https://mirror.maeen.sa/alpine}
-ALPINE_BRANCH=${ALPINE_BRANCH:-edge}
-
-BASE_PACKAGES=${BASE_PACKAGES:-"alpine-baselayout alpine-keys apk-tools busybox
-    busybox-binsh busybox-suid doas e2fsprogs mdev-conf musl-utils amd-ucode
-    nftables runit limine-efi-x86_64 linux-busylinux busylinux-init"}
 PACKAGES=${PACKAGES:-}
-REPO_URL=${REPO_URL:-}
-IMAGE_SIZE=${IMAGE_SIZE:-8G}
-ROOT_LABEL=BUSYLINUX_ROOT
-LOCAL_REPO_DIR=/var/lib/busylinux/repo
-JOBS=${JOBS:-$(nproc)}
+BASE="alpine-baselayout alpine-keys apk-tools busybox busybox-binsh busybox-suid
+      doas e2fsprogs mdev-conf musl-utils amd-ucode nftables runit limine-efi-x86_64
+      linux-busylinux@busylinux busylinux-init@busylinux"
 
-TOP=/build
-PKGS=${PKGS_DIR:-/usr/local/share/busylinux/pkgs}
-CACHE=$TOP/cache
-SRC=$CACHE/sources
-REPO=$CACHE/packages
-STAMPS=$CACHE/stamps
-KEYS=$CACHE/keys
-BLD=$TOP/work
-ROOTFS=$TOP/rootfs
-OUT=$TOP/out
-HOST_PATH=$PATH
+PKGS=/usr/local/share/busylinux/pkgs
+CACHE=/build/cache OUT=/build/out WORK=/build/work ROOT=/build/rootfs
+SRC=$CACHE/sources REPO=$CACHE/packages/x86_64 KEY=$CACHE/keys/busylinux.rsa
+LOCAL=/var/lib/busylinux/repo
+export VM_SUPPORT=${VM_SUPPORT:-0} MENUCONFIG=${MENUCONFIG:-0}
+# shellcheck source=lib.sh
+. /usr/local/share/busylinux/lib.sh
 
-export GIT_PAGER=cat PAGER=cat
-
-log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*" >&2; }
-info() { printf '\033[1;34m  > %s\033[0m\n' "$*" >&2; }
-die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
-
-load_meta() {
-    unset version release desc url license depends makedepends subpackages \
-          options provides replaces provider_priority buildvars
-    release=0
-    desc='' url='' license='' depends='' makedepends=''
-    subpackages='' options='' provides='' replaces='' provider_priority=''
-    buildvars=''
-    # shellcheck source=/dev/null
-    . "$PKGS/$1/meta"
-    [ -n "${version:-}" ] || die "$1: meta sets no version"
-    desc=${desc:-$1}
+# Everything a package is built from; a change rebuilds it.
+stamp() {
+    { (cd "$PKGS/$1" && find . -type f | LC_ALL=C sort | xargs sha256sum)
+      cat /usr/local/share/busylinux/lib.sh /etc/alpine-release
+      echo "VM_SUPPORT=$VM_SUPPORT"; } | sha256sum | cut -d' ' -f1
 }
 
-recipes() {
-    local dir
-    for dir in "$PKGS"/*/; do
-        [ -f "${dir}meta" ] || continue
-        dir=${dir%/}
-        printf '%s\n' "${dir##*/}"
-    done
-}
+mkdir -p "$CACHE/keys/pub" "$CACHE/stamps" "$OUT" "$REPO" "$WORK"
+new_key "$CACHE/keys/pub"
+cp "$CACHE/keys/pub/busylinux.rsa.pub" /etc/apk/keys/
 
-source_key() {
-    case $1 in
-        git+*) printf '%s#%s\n' "$(basename "${1%#*}")" "${1##*#}" ;;
-        *)     basename "$1" ;;
-    esac
-}
-
-expected_sum() {
-    local key=$2 sum name
-    while read -r sum name; do
-        [ "$name" = "$key" ] && { printf '%s\n' "$sum"; return 0; }
-    done < "$PKGS/$1/sha256sums"
-    return 1
-}
-
-git_clone() {
-    local url=${1%#*} ref=${1##*#}
-    rm -rf "$2"
-    git -c advice.detachedHead=false clone -q --depth 1 -b "$ref" "$url" "$2"
-}
-
-fetch_source() {
-    local recipe=$1 src=$2 key file want got
-    key=$(source_key "$src")
-    case $src in
-        git+*|*://*) want=$(expected_sum "$recipe" "$key") ||
-            die "$recipe: no checksum for '$key' (run: build.sh --checksum $recipe)" ;;
-        *) printf '%s\n' "$PKGS/$recipe/$src"; return 0 ;;
-    esac
-
-    case $src in
-    git+*)
-        file="$SRC/$key.tar.gz"
-        if [ ! -s "$file" ]; then
-            info "cloning $key"
-            git_clone "${src#git+}" "$BLD/clone"
-            got=$(git -C "$BLD/clone" rev-parse HEAD)
-            [ "$got" = "$want" ] || die "$recipe: $key is commit $got, expected $want"
-            rm -rf "$BLD/clone/.git"
-            tar -czf "$file.part" -C "$BLD/clone" . && mv "$file.part" "$file"
-            rm -rf "$BLD/clone"
-        fi
-        ;;
-    *)
-        file="$SRC/$key"
-        if [ ! -s "$file" ]; then
-            info "downloading $key"
-            curl -fsSL --retry 3 -o "$file.part" "$src"
-            mv "$file.part" "$file"
-        fi
-        got=$(sha256sum "$file" | cut -d' ' -f1)
-        [ "$got" = "$want" ] || die "$recipe: $key has checksum $got, expected $want"
-        ;;
-    esac
-    printf '%s\n' "$file"
-}
-
-prepare_srcdir() {
-    local recipe=$1 dir=$2 src dest file target
-    while read -r src dest _; do
-        case ${src:-} in ''|'#'*) continue ;; esac
-        target=$dir${dest:+/$dest}
-        mkdir -p "$target"
-        file=$(fetch_source "$recipe" "$src")
-        case $src in
-            git+*)                       tar -xf "$file" -C "$target" ;;
-            *.tar|*.tar.*|*.tgz|*.tbz2)  tar -xf "$file" -C "$target" --strip-components=1 ;;
-            *://*)                       cp -f "$file" "$target/" ;;
-            *)                           cp -Rf "$file" "$target/" ;;
-        esac
-    done < "$PKGS/$recipe/sources"
-}
-
-checksum_recipe() {
-    local recipe=$1 src key file sums=
-    while read -r src _; do
-        case ${src:-} in ''|'#'*) continue ;; esac
-        key=$(source_key "$src")
-        case $src in
-        git+*)
-            git_clone "${src#git+}" "$BLD/clone"
-            sums+="$(git -C "$BLD/clone" rev-parse HEAD)  $key"$'\n'
-            rm -rf "$BLD/clone"
-            ;;
-        *://*)
-            file="$SRC/$key"
-            [ -s "$file" ] || curl -fsSL --retry 3 -o "$file" "$src"
-            sums+="$(sha256sum "$file" | cut -d' ' -f1)  $key"$'\n'
-            ;;
-        esac
-    done < "$PKGS/$recipe/sources"
-    printf '%s' "$sums" > "$PKGS/$recipe/sha256sums"
-    info "$recipe: wrote $(grep -c . "$PKGS/$recipe/sha256sums") checksums"
-}
-
-host_apk() {
-    APK=$(command -v apk) || die "apk is not installed in the container"
-    case $("$APK" --version) in
-        "apk-tools 3."*) info "using $("$APK" --version | cut -d, -f1)" ;;
-        *) die "apk-tools 3 is needed, the container has $("$APK" --version)" ;;
-    esac
-}
-
-setup_key() {
-    mkdir -p "$KEYS/pub"
-    KEY=$KEYS/busylinux.rsa
-    KEYPUB=$KEYS/pub/busylinux.rsa.pub
-    [ -f "$KEY" ] && return
-    log "Generating this repository's signing key"
-    openssl genrsa -out "$KEY" 4096 2>/dev/null
-    chmod 600 "$KEY"
-    openssl rsa -in "$KEY" -pubout -out "$KEYPUB" 2>/dev/null
-    info "private key: ${KEY#"$TOP"/} inside the build cache - keep it"
-}
-
-fetch_alpine_keys() {
-    local index=$BLD/APKINDEX version
-    [ -f "$KEYS/pub/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub" ] && {
-        info "Alpine keys already in the build keyring"; return; }
-    log "Fetching Alpine's signing keys"
-    curl -fsSL "$ALPINE_MIRROR/$ALPINE_BRANCH/main/$ARCH/APKINDEX.tar.gz" |
-        tar -xzO APKINDEX > "$index"
-    version=$(awk '/^P:alpine-keys$/{f=1} f&&/^V:/{print substr($0,3); exit}' "$index")
-    [ -n "$version" ] || die "alpine-keys not found in the $ALPINE_BRANCH index"
-    curl -fsSL -o "$BLD/alpine-keys.apk" \
-        "$ALPINE_MIRROR/$ALPINE_BRANCH/main/$ARCH/alpine-keys-$version.apk"
-    rm -rf "$BLD/keys"; mkdir -p "$BLD/keys"
-    tar -xzf "$BLD/alpine-keys.apk" -C "$BLD/keys" 2>/dev/null || true
-    cp "$BLD/keys"/etc/apk/keys/*.pub "$KEYS/pub/"
-    info "alpine-keys $version: $(ls "$BLD/keys"/etc/apk/keys | wc -l) keys"
-}
-
-apk_host() { "$APK" --keys-dir "$KEYS/pub" "$@"; }
-
-reindex() {
-    apk_host mkndx --output "$REPO/$ARCH/Packages.adb" --sign-key "$KEY" \
-        "$REPO/$ARCH"/*.apk > /dev/null
-}
-
-install_repos() {
-    local base=${ALPINE_MIRROR/https:/http:}
-    printf 'v3 %s\n%s/%s/main\n%s/%s/community\n@testing %s/%s/testing\n' \
-        "$REPO" \
-        "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH"
-}
-
-apk_root() {
-    local root=$1; shift
-    mkdir -p "$root/etc/apk/keys"
-    cp -f "$KEYS"/pub/*.pub "$root/etc/apk/keys/"
-    install_repos > "$BLD/repositories"
-    apk_host --root "$root" --repositories-file "$BLD/repositories" "$@"
-}
-
-# Built in a chroot of ALPINE_BRANCH, to link against the image's libraries.
-build_in_alpine() {
-    local srcdir=$1 destdir=$2 root=$BLD/alpine-root base=${ALPINE_MIRROR/https:/http:}
-    rm -rf "$root"
-    mkdir -p "$root/etc/apk/keys" "$root/dev"
-    cp -f "$KEYS"/pub/*.pub "$root/etc/apk/keys/"
-    printf '%s/%s/main\n%s/%s/community\n' \
-        "$base" "$ALPINE_BRANCH" "$base" "$ALPINE_BRANCH" > "$BLD/alpine-repositories"
-    # shellcheck disable=SC2086
-    apk_host --root "$root" --repositories-file "$BLD/alpine-repositories" \
-        add --initdb busybox busybox-binsh build-base $makedepends > /dev/null || return 1
-    [ -e "$root/dev/null" ] || mknod -m 666 "$root/dev/null" c 1 3 || return 1
-    mkdir -p "$root/build/pkg"
-    cp -a "$srcdir" "$root/build/src" || return 1
-    cp "$PKGS/$RECIPE/build" "$root/build/recipe" || return 1
-    chroot "$root" /bin/busybox env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/build \
-        MAKEFLAGS="$MAKEFLAGS" /bin/sh -ec \
-        'cd /build/src && sh -e /build/recipe /build/pkg "$1"' sh "$version" || return 1
-    cp -a "$root/build/pkg/." "$destdir/" || return 1
-    rm -rf "$root"
-}
-
-strip_tree() {
-    local dir=$1 file
-    while IFS= read -r -d '' file; do
-        head -c 4 "$file" 2>/dev/null | grep -q $'\x7fELF' || continue
-        case $file in
-            *.ko|*.ko.*)  continue ;;
-            *.a|*.o)      strip -g "$file" 2>/dev/null || : ;;
-            *)            strip -s -R .comment -R .note "$file" 2>/dev/null || : ;;
-        esac
-    done < <(find "$dir" -type f -print0)
-}
-
-make_package() {
-    local name=$1 pkgver=$2 pdesc=$3 pdeps=$4 dir=$5
-    local out="$REPO/$ARCH/$name-$pkgver.apk" script
-    local -a args=()
-    mkdir -p "$REPO/$ARCH"
-    [ -n "$pdeps" ] && args+=(--info "depends:$pdeps")
-    [ -n "$provides" ] && args+=(--info "provides:$provides")
-    [ -n "$replaces" ] && args+=(--info "replaces:$replaces")
-    [ -n "$provider_priority" ] && args+=(--info "provider-priority:$provider_priority")
-    for script in "$PKGS/$RECIPE/scripts/$name".*; do
-        [ -f "$script" ] && args+=(--script "${script##*.}:$script")
-    done
-    apk_host mkpkg \
-        --files "$dir" \
-        --info "name:$name" --info "version:$pkgver" \
-        --info "description:$pdesc" --info "arch:$ARCH" \
-        --info "license:${license:-custom}" --info "url:$url" \
-        --info "origin:$RECIPE" \
-        "${args[@]}" --sign-key "$KEY" --output "$out" > /dev/null
-    info "$name-$pkgver.apk ($(du -sh "$dir" | cut -f1) installed)"
-}
-
-# Everything a package is built from: the recipe, this script, the container
-# and the variables the recipe reads (meta's buildvars).
-recipe_stamp() {
-    local var
-    {
-        (cd "$PKGS/$1" && find . -type f | LC_ALL=C sort | xargs sha256sum)
-        sha256sum < "${BASH_SOURCE[0]}"
-        cat /etc/alpine-release 2>/dev/null
-        printf 'branch=%s\n' "$ALPINE_BRANCH"
-        for var in $buildvars; do printf '%s=%s\n' "$var" "${!var:-}"; done
-    } | sha256sum | cut -d' ' -f1
-}
-
-build_recipe() {
-    RECIPE=$1
-    load_meta "$RECIPE"
-    local pkgver="$version-r$release" sub subdesc subdeps var
-    local dir="$BLD/$RECIPE" destdir="$BLD/$RECIPE/pkg" srcdir="$BLD/$RECIPE/src"
-    local stamp
-    stamp=$(recipe_stamp "$RECIPE")
-
-    if [ -f "$REPO/$ARCH/$RECIPE-$pkgver.apk" ] && [ "${REBUILD:-0}" != 1 ] &&
-       [ "$(cat "$STAMPS/$RECIPE" 2>/dev/null)" = "$pkgver $stamp" ]; then
-        log "$RECIPE $pkgver: cached"
-        return
-    fi
-    log "$RECIPE $pkgver: building"
-    rm -rf "$dir"
-    mkdir -p "$srcdir" "$destdir"
-    prepare_srcdir "$RECIPE" "$srcdir"
-    if [ -n "$makedepends" ]; then
-        build_in_alpine "$srcdir" "$destdir" || die "$RECIPE: build failed"
+keep=''
+for r in $(recipes); do
+    pkgver=$(field "$r" version)-r$(field "$r" release)
+    keep="$keep $r-$pkgver.apk"
+    s="$pkgver $(stamp "$r")"
+    if [ -f "$REPO/$r-$pkgver.apk" ] && [ "$(cat "$CACHE/stamps/$r" 2>/dev/null)" = "$s" ]; then
+        log "$r $pkgver: cached"
     else
-        ( cd "$srcdir" && sh -e "$PKGS/$RECIPE/build" "$destdir" "$version" ) ||
-            die "$RECIPE: build failed"
+        build_pkg "$r" "$(field "$r" release)"
+        echo "$s" > "$CACHE/stamps/$r"
     fi
-    case " $options " in *" nostrip "*) ;; *) strip_tree "$destdir" ;; esac
+done
+for f in "$REPO"/*.apk "$SRC"/*; do
+    case " $keep $(cat "$PKGS"/*/sha256sums | awk '{print $2}' | tr '\n' ' ') " in
+        *" ${f##*/} "*) ;;
+        *) rm -f "$f" ;;
+    esac
+done
+index
 
-    for sub in $subpackages; do
-        mkdir -p "$dir/sub-$sub"
-        sh -e "$PKGS/$RECIPE/split/$sub" "$destdir" "$dir/sub-$sub" ||
-            die "$RECIPE: splitting $sub failed"
-    done
-
-    make_package "$RECIPE" "$pkgver" "$desc" "$depends" "$destdir"
-    for sub in $subpackages; do
-        var=${sub//-/_}
-        eval "subdesc=\${${var}_desc:-\"\$desc (${sub##*-} files)\"}"
-        eval "subdeps=\${${var}_depends:-\"\$RECIPE=\$pkgver\"}"
-        make_package "$sub" "$pkgver" "$subdesc" "$subdeps" "$dir/sub-$sub"
-    done
-    rm -rf "$srcdir" "$destdir" "$dir"/sub-*
-    printf '%s %s\n' "$pkgver" "$stamp" > "$STAMPS/$RECIPE"
+log "Installing the image from Alpine edge"
+rm -rf "$ROOT"
+mkdir -p "$ROOT/etc/apk/keys" "$ROOT$LOCAL"
+cp /etc/apk/keys/* "$ROOT/etc/apk/keys/"
+cp -R "$REPO" "$ROOT$LOCAL/"
+repos() {
+    printf '%s\n' "v3 @busylinux $1" "$ALPINE_MIRROR/edge/main" \
+        "$ALPINE_MIRROR/edge/community" "@testing $ALPINE_MIRROR/edge/testing"
 }
+repos "${REPO%/*}" > "$WORK/repositories"
+# shellcheck disable=SC2086
+apk --root "$ROOT" --repositories-file "$WORK/repositories" add --initdb -q $BASE $PACKAGES
+repos "$LOCAL" > "$ROOT/etc/apk/repositories"
+sed -i 's/^root:[^:]*:/root::/' "$ROOT/etc/shadow"
+[ -x "$ROOT/sbin/init" ] || die "the image has no /sbin/init"
 
-# Drops packages and sources that no recipe names any more.
-prune_cache() {
-    local keep=$BLD/keep recipe sub src f
-    for recipe in $(recipes); do
-        load_meta "$recipe"
-        for sub in "$recipe" $subpackages; do
-            printf '%s\n' "$sub-$version-r$release.apk"
-        done
-        while read -r src _; do
-            case ${src:-} in
-                git+*)  printf '%s.tar.gz\n' "$(source_key "$src")" ;;
-                *://*)  source_key "$src" ;;
-            esac
-        done < "$PKGS/$recipe/sources"
-    done > "$keep"
-    for f in "$REPO/$ARCH"/*.apk "$SRC"/*; do
-        [ -e "$f" ] || continue
-        grep -qxF "${f##*/}" "$keep" && continue
-        rm -f "$f"
-        info "pruned ${f##*/}"
-    done
-}
+log "Initramfs"
+I=$WORK/initramfs
+rm -rf "$I"
+mkdir -p "$I/bin" "$I/dev" "$I/lib" "$I/newroot" "$I/proc" "$I/sys"
+mknod -m 600 "$I/dev/console" c 5 1
+mknod -m 666 "$I/dev/null" c 1 3
+cp "$ROOT/bin/busybox" "$I/bin/"
+cp "$ROOT/lib/ld-musl-x86_64.so.1" "$I/lib/"
+cp "$PKGS/busylinux-init/files/initramfs-init" "$I/init"
+chmod 755 "$I/init"
+(cd "$I" && find . | cpio -o -H newc -R 0:0 --quiet) | gzip -9 > "$ROOT/boot/initramfs.cpio.gz"
 
-install_local_repo() {
-    local root=$1 dir apk name newest
-    [ "${LOCAL_REPO:-1}" = 1 ] || return 0
-    dir=$root$LOCAL_REPO_DIR/$ARCH
-    rm -rf "${root:?}$LOCAL_REPO_DIR"
-    mkdir -p "$dir"
-    for apk in "$REPO/$ARCH"/*.apk; do
-        name=$(basename "$apk" | sed 's/-[^-]*-r[0-9]*\.apk$//')
-        newest=$(find "$REPO/$ARCH" -maxdepth 1 -name "$name-*.apk" -printf '%f\n' |
-                 grep -E "^$name-[^-]+-r[0-9]+\.apk$" | sort -V | tail -1)
-        [ -f "$dir/$newest" ] || cp "$REPO/$ARCH/$newest" "$dir/"
-    done
-    apk_host mkndx --output "$dir/Packages.adb" --sign-key "$KEY" "$dir"/*.apk > /dev/null
-    info "local repository: $LOCAL_REPO_DIR ($(du -sh "$dir" | cut -f1), $(ls "$dir"/*.apk | wc -l) packages)"
-}
-
-write_config() {
-    local root=$1 repo_line='#v3 https://example.org/busylinux'
-    [ "${LOCAL_REPO:-1}" = 1 ] && repo_line="v3 $LOCAL_REPO_DIR"
-    [ -n "$REPO_URL" ] && repo_line="$repo_line"$'\n'"v3 $REPO_URL"
-    cat > "$root/etc/apk/repositories" <<EOF
-$repo_line
-$ALPINE_MIRROR/$ALPINE_BRANCH/main
-$ALPINE_MIRROR/$ALPINE_BRANCH/community
-@testing $ALPINE_MIRROR/$ALPINE_BRANCH/testing
-EOF
-    echo busylinux > "$root/etc/hostname"
-    cat > "$root/etc/fstab" <<EOF
-LABEL=$ROOT_LABEL                       /                    ext4     rw,noatime                        0      1
-tmpfs                                      /tmp                 tmpfs    rw,nosuid,nodev,size=8G           0      0
-EOF
-    printf '127.0.0.1\tlocalhost localhost.localdomain\n::1\t\tlocalhost localhost.localdomain\n127.0.1.1\tbusylinux\n' \
-        > "$root/etc/hosts"
-    sed -i 's/^root:[^:]*:/root::/' "$root/etc/shadow"
-}
-
-build_initramfs() {
-    local initrd=$BLD/initramfs lib
-    rm -rf "$initrd"
-    mkdir -p "$initrd"/bin "$initrd"/dev "$initrd"/proc "$initrd"/sys \
-             "$initrd"/newroot "$initrd"/lib
-    install -m 755 "$ROOTFS/bin/busybox" "$initrd/bin/busybox"
-    for lib in $(readelf -d "$ROOTFS/bin/busybox" |
-                 sed -n 's/.*Shared library: \[\(.*\)\]/\1/p') \
-               ld-musl-$ARCH.so.1; do
-        [ -e "$ROOTFS/lib/$lib" ] && cp -L "$ROOTFS/lib/$lib" "$initrd/lib/"
-    done
-    mknod -m 600 "$initrd/dev/console" c 5 1
-    mknod -m 666 "$initrd/dev/null"    c 1 3
-    cp "$PKGS/busylinux-init/files/initramfs-init" "$initrd/init"
-    chmod 755 "$initrd/init"
-    ( cd "$initrd" && find . -print0 | cpio --null -o -H newc -R 0:0 --quiet ) |
-        gzip -9 > "$OUT/initramfs.cpio.gz"
-}
-
-main() {
-    mkdir -p "$CACHE" "$SRC" "$KEYS" "$REPO/$ARCH" "$STAMPS" "$OUT" "$BLD"
-
-    if [ "${1:-}" = --checksum ]; then
-        shift
-        for recipe in "$@"; do checksum_recipe "$recipe"; done
-        exit 0
-    fi
-
-    log "Preparing"
-    rm -rf "$ROOTFS" "$BLD/initramfs"
-    mkdir -p "$ROOTFS"
-    host_apk
-    setup_key
-    fetch_alpine_keys
-    export JOBS ARCH MENUCONFIG=${MENUCONFIG:-0} VM_SUPPORT=${VM_SUPPORT:-0}
-    export HOSTCC=/usr/bin/gcc MAKEFLAGS="-j$JOBS"
-
-    for recipe in $(recipes); do build_recipe "$recipe"; done
-    [ "${PRUNE:-0}" != 1 ] || prune_cache
-    reindex
-
-    log "Installing the image from Alpine $ALPINE_BRANCH"
-    apk_root "$ROOTFS" add --initdb $BASE_PACKAGES $PACKAGES
-    install_local_repo "$ROOTFS"
-    write_config "$ROOTFS"
-    mkdir -p "$ROOTFS/dev"
-    rm -f "$ROOTFS/dev/null" "$ROOTFS/dev/console"
-    mknod -m 666 "$ROOTFS/dev/null"    c 1 3
-    mknod -m 600 "$ROOTFS/dev/console" c 5 1
-
-    log "Checking the image"
-    PATH=$HOST_PATH chroot "$ROOTFS" /bin/busybox sh -ec '
-        . /etc/profile
-        echo "busybox: $(busybox | sed -n 1p | cut -d, -f1)"
-        echo "libc:    $(ls /lib/ld-musl-*.so.1)"
-        echo "apk:     $(apk --version)"
-        printf "packages: "; apk list --installed 2>/dev/null | wc -l
-        echo "kernel:  $(ls /lib/modules)"
-        [ -x /sbin/init ] || { echo "no /sbin/init" >&2; exit 1; }
-        echo "image OK"'
-
-    log "Kernel and initramfs"
-    cp "$ROOTFS/boot/vmlinuz-busylinux" "$OUT/vmlinuz"
-    [ -f "$ROOTFS/boot/amd-ucode.img" ] && cp "$ROOTFS/boot/amd-ucode.img" "$OUT/"
-    build_initramfs
-    info "kernel $(ls "$ROOTFS/lib/modules"), $(du -h "$OUT/vmlinuz" | cut -f1) vmlinuz"
-
-    log "Creating the disk image ($IMAGE_SIZE, ext4, label $ROOT_LABEL)"
-    rm -f "$OUT/disk.img"
-    truncate -s "$IMAGE_SIZE" "$OUT/disk.img"
-    mke2fs -q -t ext4 -L "$ROOT_LABEL" -d "$ROOTFS" "$OUT/disk.img"
-
-    log "Creating rootfs.tar.gz"
-    tar -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
-
-    log "Publishing this project's repository"
-    rm -rf "$OUT/repo"; mkdir -p "$OUT/repo"
-    cp -R "$REPO/$ARCH" "$OUT/repo/"
-    cp "$KEYPUB" "$OUT/repo/"
-
-    [ -n "${HOST_UID:-}" ] && chown -R "$HOST_UID:${HOST_GID:-$HOST_UID}" "$OUT"
-
-    log "Done"
-    printf 'image: %s, %s packages\n' "$(du -sh "$ROOTFS" | cut -f1)" \
-        "$(apk_root "$ROOTFS" list --installed | wc -l)"
-    ls -lsh "$OUT"
-}
-
-main "$@"
+log "rootfs.tar.gz"
+tar -C "$ROOT" -czf "$OUT/rootfs.tar.gz" .
+[ -z "${HOST_UID:-}" ] || chown "$HOST_UID:${HOST_GID:-$HOST_UID}" "$OUT/rootfs.tar.gz"
+info "$(du -sh "$ROOT" | cut -f1) installed, $(apk --root "$ROOT" list -I | wc -l) packages"

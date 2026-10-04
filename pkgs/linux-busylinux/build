@@ -1,8 +1,4 @@
 #!/bin/sh -e
-unset PKG_CONFIG_SYSROOT_DIR PKG_CONFIG_LIBDIR PKG_CONFIG_PATH
-
-make() { command make CC="${HOSTCC:-gcc}" HOSTCC="${HOSTCC:-gcc}" "$@"; }
-
 make -s tinyconfig > /dev/null
 
 fragments=busylinux.config
@@ -51,8 +47,6 @@ done
 [ -z "$crept" ] || { printf 'config crept back:%s\n' "$crept" >&2; exit 1; }
 
 printf 'kernel: %s options enabled\n' "$(grep -c '=y$\|=m$' .config)"
-
-if [ "${CONFIG_ONLY:-0}" = 1 ]; then exit 0; fi
 
 make bzImage modules
 release=$(make -s kernelrelease)

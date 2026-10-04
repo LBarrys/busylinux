@@ -5,4 +5,4 @@ desc="Realtime scheduling on request, for members of the rtkit group (no polkit)
 url=https://gitlab.freedesktop.org/pipewire/rtkit
 license="GPL-3.0-only AND MIT"
 depends="dbus"
-makedepends="dbus-dev libcap-dev meson xxd"
+makedepends="build-base dbus-dev libcap-dev meson xxd"

@@ -7,6 +7,8 @@ if [ -f /etc/nftables.conf ] && [ -z "$(nft list ruleset 2>/dev/null)" ]; then
 fi
 for dev in /sys/class/net/*; do
     name=${dev##*/}
+    # Network cards only: bridges and veths have no device behind them.
+    [ -e "$dev/device" ] || continue
     [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue
     ip link set "$name" up
     # shellcheck disable=SC2093

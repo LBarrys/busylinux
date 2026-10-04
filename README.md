@@ -56,12 +56,14 @@ docker run --rm -it \
 | `VM_SUPPORT=1` | virtio and bochs, for QEMU |
 | `MENUCONFIG=1` | `menuconfig` after merging the fragments |
 | `REBUILD=1` | ignore cached packages |
+| `PRUNE=1` | drop cached packages and sources no recipe names |
 | `JOBS=N` | default `nproc` |
 | `IMAGE_SIZE=16G` | `disk.img` size (default 8G) |
 
 `out/` gets `vmlinuz`, `initramfs.cpio.gz`, `amd-ucode.img`, `rootfs.tar.gz`
 (for `install.sh`), `disk.img` (for QEMU) and `repo/` (signed packages and
 public key). Recipes with `makedepends` build in a chroot of `ALPINE_BRANCH`.
+A cached package is rebuilt when its recipe, `build.sh` or the container changes.
 
 The signing key exists only in the `busylinux-cache` volume; lose it and
 installed systems reject new builds. Back it up:
@@ -129,7 +131,7 @@ keeps the network down until `nft -f /etc/nftables.conf` succeeds.
 ## Desktop
 
 ```sh
-apk add linux-firmware-amdgpu eudev \
+apk add linux-firmware-amdgpu libudev-zero \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus rtkit seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     sway swaybg swayidle swaylock foot xwayland \
@@ -187,8 +189,10 @@ git pull
 
 Both sign with `/root/keys/local.rsa` (created on first use), keep changed
 `/etc` files (new ones land as `.apk-new`) and remove the build tools they
-installed. `kernel-update.sh --version X.Y.Z --sha256 SUM` switches release;
-`--vm` adds the VM drivers. Both take `--help`.
+installed. `kernel-update.sh --check` shows whether the series has a newer
+release, `--latest` builds it and `--version X.Y.Z` builds another; the
+tarball must carry Linus Torvalds' or Greg Kroah-Hartman's signature. `--vm`
+adds the VM drivers. Both take `--help`.
 
 ## License
 

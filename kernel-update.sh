@@ -8,14 +8,19 @@ Build, package and install a BusyLinux kernel on the machine itself.
     kernel-update.sh [options]
 
 Runs as root from a checkout of this repository. It installs the toolchain if
-needed, fetches and configures the kernel with this project's fragment, builds
-it, wraps it in a signed .apk, adds it to the local repository and installs it.
+needed, fetches the kernel and checks its signature, configures it with this
+project's fragment, builds it, wraps it in a signed .apk, adds it to the local
+repository and installs it.
 
 Options:
+    --check             show the recipe's, the installed and the newest release
+                        of the recipe's series, then stop; needs no root
+    --latest            build the newest release of the recipe's series
     --version X.Y.Z     kernel version (default: pkgs/linux-busylinux/meta).
                         The kernel.org directory follows the major number, so
                         7.2.7 is fetched from v7.x and 6.18.53 from v6.x.
-    --sha256 SUM        expected checksum, for a version this tree has none for
+    --sha256 SUM        expected checksum, when kernel.org's signature cannot
+                        be checked
     --config-only       configure and check the symbols, then stop
     --release N         apk release number (default: installed release + 1)
     --jobs N            parallel make jobs (default: nproc)
@@ -37,9 +42,15 @@ EOT
 VERSION='' RELEASE='' JOBS='' WORK=/var/tmp/busylinux-kernel
 KEY=/root/keys/local.rsa REPO=/var/lib/busylinux/repo/x86_64
 VM=0 MENUCONFIG=0 FALLBACK=1 INSTALL=1 KEEP=0 ASSUME_YES=0 CONFIG_ONLY=0
-KEEP_TOOLS=0 ADDED=''
+KEEP_TOOLS=0 ADDED='' CHECK=0 LATEST=0
 SHA256='' CHECKOUT='' NAME=linux-busylinux
 MIRROR=https://cdn.kernel.org/pub/linux/kernel
+RELEASES=https://www.kernel.org/releases.json
+# Tarballs are signed by Linus Torvalds (X.Y) or Greg Kroah-Hartman (X.Y.Z);
+# their keys come from kernel.org's WKD and must have these fingerprints.
+WKD=https://openpgpkey.kernel.org/.well-known/openpgpkey/kernel.org/hu
+SIGNERS="torvalds:pf113mfnx1f3eb1yiwhsipa91xfc7o4x:ABAF11C65A2970B130ABE3C479BE3E4300411886
+gregkh:e3n9xnm94c5apezqnj1pmrfuaoyfm8cf:647F28654894E3BD457199BE38DBBDC86092693E"
 
 die()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 log()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
@@ -76,6 +87,8 @@ while [ $# -gt 0 ]; do
         --key)         KEY=$2; shift 2 ;;
         --repo)        REPO=$2; shift 2 ;;
         --sha256)      SHA256=$2; shift 2 ;;
+        --check)       CHECK=1; shift ;;
+        --latest)      LATEST=1; shift ;;
         --config-only) CONFIG_ONLY=1; shift ;;
         --menuconfig)  MENUCONFIG=1; shift ;;
         --vm)          VM=1; shift ;;
@@ -89,8 +102,6 @@ while [ $# -gt 0 ]; do
         *)             die "unknown option: $1" ;;
     esac
 done
-
-[ "$(id -u)" = 0 ] || die "run this as root"
 
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 NL='
@@ -122,13 +133,39 @@ EOT
     exit 1
 fi
 
-if [ -z "$VERSION" ]; then
-    VERSION=$(sed -n 's/^version=//p' "$RECIPE/meta")
-fi
-[ -n "$VERSION" ] || die "could not determine the kernel version"
-
+RECIPE_VERSION=$(sed -n 's/^version=//p' "$RECIPE/meta")
+[ -n "$RECIPE_VERSION" ] || die "could not read the version in $RECIPE/meta"
 INSTALLED=$(apk list --installed 2>/dev/null |
             sed -n "s/^$NAME-\([0-9][^ ]*\) .*/\1/p" | head -1)
+
+# The newest release of the recipe's X.Y series, from kernel.org.
+newest() {
+    series=$(echo "$RECIPE_VERSION" | cut -d. -f1,2)
+    wget -q -O - "$RELEASES" |
+        sed -n "s/.*\"version\": *\"\($(echo "$series" | sed 's/\./\\./g')\(\.[0-9]*\)\{0,1\}\)\".*/\1/p" |
+        head -1
+}
+
+if [ "$CHECK" = 1 ]; then
+    NEWEST=$(newest) || die "could not read $RELEASES"
+    log "Kernel releases"
+    info "recipe:    $RECIPE_VERSION"
+    info "installed: ${INSTALLED:-none}"
+    info "newest:    ${NEWEST:-none; kernel.org no longer lists the series}"
+    if [ -n "$NEWEST" ] && [ "$NEWEST" != "$RECIPE_VERSION" ]; then
+        info "build it with: ./kernel-update.sh --latest"
+    fi
+    exit 0
+fi
+
+[ "$(id -u)" = 0 ] || die "run this as root"
+
+if [ "$LATEST" = 1 ]; then
+    [ -z "$VERSION" ] || die "--latest and --version do not go together"
+    VERSION=$(newest) || die "could not read $RELEASES"
+    [ -n "$VERSION" ] || die "kernel.org no longer lists the $RECIPE_VERSION series"
+fi
+VERSION=${VERSION:-$RECIPE_VERSION}
 if [ -z "$RELEASE" ]; then
     case $INSTALLED in
         "$VERSION"-r*) RELEASE=$(( ${INSTALLED##*-r} + 1 )) ;;
@@ -156,7 +193,7 @@ fi
 log "Checking the toolchain"
 # GNU grep: some kernel Makefiles use options busybox grep lacks.
 TOOLS="build-base bash bc bison flex perl openssl openssl-dev elfutils-dev
-       linux-headers diffutils findutils grep xz gzip cpio zstd"
+       linux-headers diffutils findutils grep xz gzip cpio zstd gpgv"
 if [ "$MENUCONFIG" = 1 ]; then TOOLS="$TOOLS ncurses-dev"; fi
 for t in $TOOLS; do
     apk list --installed "$t" 2>/dev/null | grep -q "^$t-[0-9]" || ADDED="$ADDED $t"
@@ -198,10 +235,41 @@ if [ -n "$want" ]; then
     got=$(sha256sum "$WORK/$TARBALL" | cut -d' ' -f1)
     [ "$got" = "$want" ] || die "$TARBALL checksum $got, expected $want"
     info "checksum ok"
-else
-    info "this tree has no checksum for $TARBALL, so only TLS vouches for it."
-    info "Pass --sha256 with the value from $MIRROR/$SERIES/sha256sums.asc"
 fi
+
+# 0: signed by a key in SIGNERS, 1: could not fetch, 2: bad signature.
+check_signature() {
+    gpgdir=$WORK/gnupg
+    rm -rf "$gpgdir"
+    mkdir -m 700 "$gpgdir"
+    for s in $SIGNERS; do
+        user=${s%%:*} hash=${s#*:} hash=${hash%%:*}
+        wget -q -O "$gpgdir/$user.gpg" "$WKD/$hash?l=$user" || return 1
+    done
+    cat "$gpgdir"/*.gpg > "$gpgdir/keyring.gpg"
+    wget -q -O "$WORK/linux-$VERSION.tar.sign" "$MIRROR/$SERIES/linux-$VERSION.tar.sign" ||
+        return 1
+    status=$(xz -dc "$WORK/$TARBALL" |
+             gpgv --homedir "$gpgdir" --keyring "$gpgdir/keyring.gpg" --status-fd 1 \
+                  "$WORK/linux-$VERSION.tar.sign" - 2>/dev/null) || return 2
+    for s in $SIGNERS; do
+        fpr=${s##*:}
+        if printf '%s\n' "$status" | grep -q "^\[GNUPG:\] VALIDSIG .* $fpr\$"; then
+            info "signed by $fpr (${s%%:*}@kernel.org)"
+            return 0
+        fi
+    done
+    printf '%s\n' "$status" | sed -n 's/^\[GNUPG:\] VALIDSIG .* /  > signed by unknown key /p'
+    return 2
+}
+rc=0
+check_signature || rc=$?
+case $rc:$want in
+    0:*) info "signature ok" ;;
+    1:)  die "could not fetch kernel.org's signature or keys; pass --sha256 to go on without" ;;
+    1:*) info "could not fetch kernel.org's signature or keys; the checksum vouches for it" ;;
+    *)   die "$TARBALL does not carry a good signature from kernel.org" ;;
+esac
 
 if [ "$KEEP" = 1 ] && [ -d "$SRCDIR" ]; then
     log "Reusing the existing build tree"

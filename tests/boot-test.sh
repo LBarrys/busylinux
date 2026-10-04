@@ -56,7 +56,16 @@ cp --sparse=always "$OUT/disk.img" "$work/disk.img"
 repo=$(cd "$(dirname "$0")/.." && pwd)
 openssl genrsa -out "$work/local.rsa" 2048 2>/dev/null
 openssl rsa -in "$work/local.rsa" -pubout -out "$work/local.rsa.pub" 2>/dev/null
+# A service that needs 3 s to stop, to show rcK waits for it.
+cat > "$work/slowstop" <<'EOT'
+#!/bin/sh
+trap 'sleep 3; echo "slowstop: stopped cleanly" > /dev/console; exit 0' TERM
+while :; do sleep 1; done
+EOT
+chmod 755 "$work/slowstop"
 {
+    echo "mkdir /etc/service/slowstop"
+    echo "write $work/slowstop /etc/service/slowstop/run"
     echo "mkdir /root/keys"
     echo "write $work/local.rsa /root/keys/local.rsa"
     echo "write $work/local.rsa.pub /etc/apk/keys/local.rsa.pub"
@@ -102,16 +111,19 @@ sleep 1
 check firewall   'nft list chain inet filter input | grep -q "policy drop"'
 check forward    'nft list chain inet filter forward | grep -q "policy drop"'
 check dhcp       'for i in $(seq 60); do ip -4 addr show | grep -q "inet 10\.0\.2\." && break; sleep 1; done; ip -4 addr show | grep -q "inet 10\.0\.2\."'
-check services   '[ "$(for s in syslogd klogd crond acpid dhcp; do sv status /etc/service/$s; done | grep -c "^run:")" = 5 ]'
+check services   'for i in $(seq 10); do [ "$(for s in syslogd klogd crond acpid dhcp slowstop; do sv status /etc/service/$s; done | grep -c "^run:")" = 6 ] && break; sleep 1; done; [ "$i" -lt 10 ]'
 check cgroup2    'grep -q "^cgroup2 /sys/fs/cgroup " /proc/mounts'
 check devfd      '[ -L /dev/fd ] && [ "$(echo fd-ok | cat /dev/stdin)" = fd-ok ] && [ -e /dev/fd/0 ]'
 check tmp        'grep -q "^tmpfs /tmp tmpfs rw,nosuid,nodev" /proc/mounts'
 check ntsync     '[ "$(stat -c %a /dev/ntsync)" = 666 ]'
 check uinput     '[ "$(stat -c %G:%a /dev/uinput)" = input:660 ]'
 check sysrq      '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
+check mglru      '[ "$(cat /sys/kernel/mm/lru_gen/enabled)" != 0x0000 ]'
 
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload     'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
+# A bridge sorts before eth0; DHCP must still go to the network card.
+check dhcp-bridge 'ip link add br-test type bridge && ip link set br-test up && sv restart /etc/service/dhcp >/dev/null; sleep 2; pgrep -f "udhcpc -f -i eth0" >/dev/null && ! pgrep -f "udhcpc -f -i br-test" >/dev/null && ip link del br-test'
 check libudev-zero 'apk add --no-network -q libudev-zero >/dev/null 2>&1 && apk info -e libudev-zero >/dev/null && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
 # mdev through libudev-zero's relay: a hot-plugged sound card gets module and node.
 check mdev-relay 'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
@@ -127,5 +139,11 @@ wait "$qpid" || :
 qpid=''
 console | grep -q 'Shutting down' || fail "power button: rcK never ran"
 pass "power button"
+console | grep -q 'slowstop: stopped cleanly' || fail "shutdown: services were not given time to stop"
+pass "services stopped"
+if dumpe2fs -h "$work/disk.img" 2>/dev/null | grep -q '^Filesystem features:.*needs_recovery'; then
+    fail "shutdown: the root file system was left dirty"
+fi
+pass "clean root file system"
 
 echo "boot-test: all checks passed"

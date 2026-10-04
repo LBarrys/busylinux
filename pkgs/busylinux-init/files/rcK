@@ -1,8 +1,33 @@
 #!/bin/sh
 echo "Shutting down..."
-killall5 -15
-sleep 1
-killall5 -9
+
+# Services first, with time to save their state; sv kills what is still up.
+if command -v sv > /dev/null 2>&1; then
+    sv -w 20 force-stop /etc/service/* > /dev/null 2>&1
+fi
+
+# Whether a process other than init and this script is left; kernel
+# threads and zombies have no executable.
+others() {
+    for p in /proc/[0-9]*; do
+        case ${p#/proc/} in 1|"$$") continue ;; esac
+        [ -e "$p/exe" ] && return 0
+    done
+    return 1
+}
+
+# Signals everything else, then waits up to $2 seconds for it to go.
+signal() {
+    killall5 "$1"
+    i=0
+    while [ "$i" -lt "$2" ] && others; do
+        sleep 1
+        i=$((i + 1))
+    done
+}
+signal -15 5
+signal -9 2
+
 hwclock -u -w 2>/dev/null
 sync
 mount -o remount,ro / 2>/dev/null

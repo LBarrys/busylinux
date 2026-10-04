@@ -41,6 +41,8 @@ jobs:
         with:
           path: cache
           key: build-${{ hashFiles('Dockerfile', 'build.sh', 'pkgs/**') }}
+          # build.sh rebuilds only the recipes that changed since.
+          restore-keys: build-
 
       - name: Build the builder image
         run: docker build -t busylinux-builder .
@@ -52,7 +54,7 @@ jobs:
             -v "$PWD/out:/build/out" -v "$PWD/cache:/build/cache" \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             -e ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine \
-            -e VM_SUPPORT=1 \
+            -e VM_SUPPORT=1 -e PRUNE=1 \
             busylinux-builder
           sudo chown -R "$(id -u):$(id -g)" cache
 
@@ -72,6 +74,12 @@ jobs:
 
       - name: Boot test
         run: tests/boot-test.sh out
+
+      - name: kernel-update.sh
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src busylinux-builder sh -ec '
+            ./kernel-update.sh --check
+            ./kernel-update.sh --config-only --yes --workdir /tmp/kernel'
 
       - name: Keep the console log
         if: always()

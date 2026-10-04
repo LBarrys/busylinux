@@ -20,6 +20,7 @@ PKGS=${PKGS_DIR:-/usr/local/share/busylinux/pkgs}
 CACHE=$TOP/cache
 SRC=$CACHE/sources
 REPO=$CACHE/packages
+STAMPS=$CACHE/stamps
 KEYS=$CACHE/keys
 BLD=$TOP/work
 ROOTFS=$TOP/rootfs
@@ -34,10 +35,11 @@ die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 load_meta() {
     unset version release desc url license depends makedepends subpackages \
-          options provides replaces provider_priority
+          options provides replaces provider_priority buildvars
     release=0
     desc='' url='' license='' depends='' makedepends=''
     subpackages='' options='' provides='' replaces='' provider_priority=''
+    buildvars=''
     # shellcheck source=/dev/null
     . "$PKGS/$1/meta"
     [ -n "${version:-}" ] || die "$1: meta sets no version"
@@ -263,13 +265,29 @@ make_package() {
     info "$name-$pkgver.apk ($(du -sh "$dir" | cut -f1) installed)"
 }
 
+# Everything a package is built from: the recipe, this script, the container
+# and the variables the recipe reads (meta's buildvars).
+recipe_stamp() {
+    local var
+    {
+        (cd "$PKGS/$1" && find . -type f | LC_ALL=C sort | xargs sha256sum)
+        sha256sum < "${BASH_SOURCE[0]}"
+        cat /etc/alpine-release 2>/dev/null
+        printf 'branch=%s\n' "$ALPINE_BRANCH"
+        for var in $buildvars; do printf '%s=%s\n' "$var" "${!var:-}"; done
+    } | sha256sum | cut -d' ' -f1
+}
+
 build_recipe() {
     RECIPE=$1
     load_meta "$RECIPE"
     local pkgver="$version-r$release" sub subdesc subdeps var
     local dir="$BLD/$RECIPE" destdir="$BLD/$RECIPE/pkg" srcdir="$BLD/$RECIPE/src"
+    local stamp
+    stamp=$(recipe_stamp "$RECIPE")
 
-    if [ -f "$REPO/$ARCH/$RECIPE-$pkgver.apk" ] && [ "${REBUILD:-0}" != 1 ]; then
+    if [ -f "$REPO/$ARCH/$RECIPE-$pkgver.apk" ] && [ "${REBUILD:-0}" != 1 ] &&
+       [ "$(cat "$STAMPS/$RECIPE" 2>/dev/null)" = "$pkgver $stamp" ]; then
         log "$RECIPE $pkgver: cached"
         return
     fi
@@ -299,6 +317,30 @@ build_recipe() {
         make_package "$sub" "$pkgver" "$subdesc" "$subdeps" "$dir/sub-$sub"
     done
     rm -rf "$srcdir" "$destdir" "$dir"/sub-*
+    printf '%s %s\n' "$pkgver" "$stamp" > "$STAMPS/$RECIPE"
+}
+
+# Drops packages and sources that no recipe names any more.
+prune_cache() {
+    local keep=$BLD/keep recipe sub src f
+    for recipe in $(recipes); do
+        load_meta "$recipe"
+        for sub in "$recipe" $subpackages; do
+            printf '%s\n' "$sub-$version-r$release.apk"
+        done
+        while read -r src _; do
+            case ${src:-} in
+                git+*)  printf '%s.tar.gz\n' "$(source_key "$src")" ;;
+                *://*)  source_key "$src" ;;
+            esac
+        done < "$PKGS/$recipe/sources"
+    done > "$keep"
+    for f in "$REPO/$ARCH"/*.apk "$SRC"/*; do
+        [ -e "$f" ] || continue
+        grep -qxF "${f##*/}" "$keep" && continue
+        rm -f "$f"
+        info "pruned ${f##*/}"
+    done
 }
 
 install_local_repo() {
@@ -357,7 +399,7 @@ build_initramfs() {
 }
 
 main() {
-    mkdir -p "$CACHE" "$SRC" "$KEYS" "$REPO/$ARCH" "$OUT" "$BLD"
+    mkdir -p "$CACHE" "$SRC" "$KEYS" "$REPO/$ARCH" "$STAMPS" "$OUT" "$BLD"
 
     if [ "${1:-}" = --checksum ]; then
         shift
@@ -375,6 +417,7 @@ main() {
     export HOSTCC=/usr/bin/gcc MAKEFLAGS="-j$JOBS"
 
     for recipe in $(recipes); do build_recipe "$recipe"; done
+    [ "${PRUNE:-0}" != 1 ] || prune_cache
     reindex
 
     log "Installing the image from Alpine $ALPINE_BRANCH"

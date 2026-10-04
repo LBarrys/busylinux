@@ -5,6 +5,9 @@ fragments=busylinux.config
 [ "${VM_SUPPORT:-0}" = 1 ] && fragments="$fragments vm.config"
 ./scripts/kconfig/merge_config.sh -m -Q .config $fragments > /dev/null
 make -s olddefconfig
+# The Ethernet vendor menus default on; only Realtek's is needed.
+sed -i '/REALTEK/!s/^CONFIG_\(NET_VENDOR_.*\)=y$/# CONFIG_\1 is not set/' .config
+make -s olddefconfig
 
 if [ "${MENUCONFIG:-0}" = 1 ]; then make menuconfig; fi
 

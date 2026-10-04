@@ -113,7 +113,6 @@ entry() {
     entry BusyLinux vmlinuz-busylinux "root=LABEL=BUSYLINUX_ROOT ro"
     entry "BusyLinux (serial console)" vmlinuz-busylinux \
         "root=LABEL=BUSYLINUX_ROOT ro console=tty0 console=ttyS0,115200"
-    entry "BusyLinux (previous kernel)" vmlinuz-previous "root=LABEL=BUSYLINUX_ROOT ro"
     entry "Rescue shell" vmlinuz-busylinux rescue
 } > "$MNT/boot/EFI/BOOT/limine.conf"
 if [ -d /sys/firmware/efi/efivars ] && command -v efibootmgr > /dev/null; then

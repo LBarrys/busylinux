@@ -1,3 +1,0 @@
-#!/bin/sh
-# The running kernel stays bootable as Limine's "previous kernel" entry.
-[ ! -f /boot/vmlinuz-busylinux ] || cp /boot/vmlinuz-busylinux /boot/vmlinuz-previous

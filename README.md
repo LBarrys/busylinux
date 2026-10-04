@@ -55,7 +55,7 @@ the machine, as root:
 ```sh
 git pull
 ./update.sh                   # list the recipes
-./update.sh linux-busylinux   # the kernel; the old one stays as "previous kernel"
+./update.sh linux-busylinux   # the kernel
 ./update.sh --all             # everything
 ```
 

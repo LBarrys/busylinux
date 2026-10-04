@@ -48,7 +48,7 @@ MIRROR=https://cdn.kernel.org/pub/linux/kernel
 RELEASES=https://www.kernel.org/releases.json
 # Tarballs are signed by Linus Torvalds (X.Y) or Greg Kroah-Hartman (X.Y.Z);
 # their keys come from kernel.org's WKD and must have these fingerprints.
-WKD=https://openpgpkey.kernel.org/.well-known/openpgpkey/kernel.org/hu
+WKD=https://kernel.org/.well-known/openpgpkey/hu
 SIGNERS="torvalds:pf113mfnx1f3eb1yiwhsipa91xfc7o4x:ABAF11C65A2970B130ABE3C479BE3E4300411886
 gregkh:e3n9xnm94c5apezqnj1pmrfuaoyfm8cf:647F28654894E3BD457199BE38DBBDC86092693E"
 

@@ -78,8 +78,10 @@ jobs:
       - name: kernel-update.sh
         run: |
           docker run --rm -v "$PWD:/src:ro" -w /src busylinux-builder sh -ec '
+            set -o pipefail
             ./kernel-update.sh --check
-            ./kernel-update.sh --config-only --yes --workdir /tmp/kernel'
+            ./kernel-update.sh --config-only --yes --workdir /tmp/kernel | tee /tmp/log
+            grep -q "signature ok" /tmp/log'
 
       - name: Keep the console log
         if: always()

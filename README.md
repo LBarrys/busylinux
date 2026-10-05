@@ -94,8 +94,9 @@ Sway config.
 `eudev`, libudev-zero's relay for BusyBox `mdev`, or plain `mdev -d`, which
 loads no modules, so list them in `/etc/modules-load.d`. This repository's
 `libudev-zero` shows sound cards to PipeWire and ships the relay. Its `rtkit`
-needs no polkit: members of the `rtkit` group get realtime audio threads,
-which stops crackling under load.
+needs no polkit: members of the `rtkit` group get realtime audio threads.
+`/etc/pipewire/pipewire.conf.d/10-busylinux.conf` keeps PipeWire's buffers at
+1024 samples or more, below which the board's USB audio crackles.
 
 ROCm needs `/dev/kfd`: `kfd root:video 0660` in `/etc/mdev.conf`.
 Docker needs a service:

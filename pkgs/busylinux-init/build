@@ -9,6 +9,7 @@ install -Dm644 sysctl-hardening.conf "$1/etc/sysctl.d/10-hardening.conf"
 install -Dm640 doas.conf     "$1/etc/doas.d/wheel.conf"
 install -Dm755 supervise     "$1/usr/sbin/busylinux-supervise"
 install -Dm644 nftables.conf "$1/etc/nftables.conf"
+install -Dm644 pipewire.conf "$1/etc/pipewire/pipewire.conf.d/10-busylinux.conf"
 install -Dm600 /dev/null     "$1/etc/crontabs/root"
 install -Dm755 acpi-poweroff "$1/etc/acpi/PWRF/00000080"
 

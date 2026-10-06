@@ -11,8 +11,8 @@ Board   MSI MAG B650 TOMAHAWK WIFI               RAM    32 GB DDR5
 ```
 
 The kernel (`pkgs/linux-busylinux/files/busylinux.config`) adds NTSYNC, xpad,
-uinput, ROCm (`HSA_AMD`), MGLRU and what Docker and Podman need. It leaves out
-Wi-Fi, Bluetooth, HDMI audio, swap, KVM, file systems but ext4 and FAT, and
+uinput, ROCm (`HSA_AMD`), MGLRU, zram and what Docker and Podman need. It leaves
+out Wi-Fi, Bluetooth, HDMI audio, KVM, file systems but ext4 and FAT, and
 VM drivers unless built with `VM_SUPPORT=1`. The build fails if a required
 option is lost or an excluded one comes back.
 
@@ -66,8 +66,8 @@ container and the Actions.
 
 ## The system
 
-`rcS` mounts the file systems, checks the root, loads the keymap, sysctls and
-`/etc/modules-load.d`, starts the device manager and the firewall, and TRIMs
+`rcS` mounts the file systems, checks the root, loads the keymap, sets up zram
+swap (half the RAM, zstd), loads sysctls and `/etc/modules-load.d`, starts the device manager and the firewall, and TRIMs
 ext4 a minute later. `rcK` gives services 20 seconds to stop. runit supervises
 `syslogd`, `klogd`, `crond`, `ntpd`, `acpid` (the power button powers off),
 `dhcp` (the first network card) and, once installed, `seatd` and `dbus`.

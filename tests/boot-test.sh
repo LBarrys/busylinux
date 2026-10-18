@@ -48,12 +48,13 @@ loop=$(losetup -fP --show "$work/disk.img")
     { cat "$work/install.log"; exit 1; }
 pass "install.sh"
 
-# Boot the serial entry; add a checkout for update.sh and a service that
-# needs 3 s to stop, to show rcK waits for it.
+# Boot the serial entry with a login on ttyS0; add a checkout for update.sh
+# and a service that needs 3 s to stop, to show rcK waits for it.
 mkdir "$work/mnt"
 mount "${loop}p2" "$work/mnt"
 mount "${loop}p1" "$work/mnt/boot"
 sed -i 's/^timeout: 3$/timeout: 1\ndefault_entry: 2/' "$work/mnt/boot/EFI/BOOT/limine.conf"
+echo 'ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100' >> "$work/mnt/etc/inittab"
 mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
 cp "$top/update.sh" "$top/lib.sh" "$work/mnt/root/busylinux/"
 cp -R "$top/pkgs/busylinux-init" "$work/mnt/root/busylinux/pkgs/"

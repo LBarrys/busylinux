@@ -1,0 +1,9 @@
+version=1.1.7
+# Above Alpine's 1.1.7-r0, so apk prefers this build.
+release=100
+desc="Netfilter tables userspace tools, with mini-gmp and no interactive CLI"
+url=https://netfilter.org/projects/nftables
+license=GPL-2.0-or-later
+depends="jansson libmnl libnftnl"
+makedepends="build-base bison flex pkgconf jansson-dev libmnl-dev libnftnl-dev"
+provides="so:libnftables.so.1=1"

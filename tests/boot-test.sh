@@ -120,7 +120,7 @@ check pinned      'grep -q "^v3 @busylinux " /etc/apk/repositories && grep -qx "
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload      'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'
 # A bridge sorts before eth0; DHCP must still go to the network card.
-check dhcp-bridge 'ip link add br-test type bridge && ip link set br-test up && sv restart /etc/service/dhcp >/dev/null; sleep 2; pgrep -f "udhcpc -f -i eth0" >/dev/null && ! pgrep -f "udhcpc -f -i br-test" >/dev/null && ip link del br-test'
+check dhcp-bridge 'ip link add br-test type bridge && ip link set br-test up && sv restart /etc/service/dhcp >/dev/null; sleep 2; pgrep -f "udhcpc .*-i eth0" >/dev/null && ! pgrep -f "udhcpc .*-i br-test" >/dev/null && ip link del br-test'
 check libudev-zero 'apk add -q libudev-zero@busylinux >/dev/null 2>&1 && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
 # mdev through libudev-zero's relay: a hot-plugged sound card gets module and node.
 check mdev-relay  'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
@@ -142,4 +142,8 @@ if dumpe2fs -h "${loop}p2" 2>/dev/null | grep -q '^Filesystem features:.*needs_r
     fail "shutdown: the root file system was left dirty"
 fi
 pass "clean root file system"
+if console | grep -Eq '(crond|udhcpc|dbus-daemon)\[[0-9]+\]:'; then
+    fail "services logged to the console instead of syslog"
+fi
+pass "quiet console"
 echo "boot-test: all checks passed"

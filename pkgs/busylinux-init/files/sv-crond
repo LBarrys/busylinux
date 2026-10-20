@@ -1,3 +1,5 @@
 #!/bin/sh
 # crond logs to syslog itself.
+# Until syslogd listens, its messages would go to the console.
+[ -S /dev/log ] || exec sleep 1
 exec crond -f -c /etc/crontabs > /dev/null 2>&1

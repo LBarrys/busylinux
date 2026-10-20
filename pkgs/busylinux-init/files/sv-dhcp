@@ -1,5 +1,7 @@
 #!/bin/sh
 # udhcpc logs to syslog itself (-S).
+# Until syslogd listens, its messages would go to the console.
+[ -S /dev/log ] || exec sleep 1
 exec > /dev/null 2>&1
 # Fail closed: no network while nftables.conf exists and no ruleset is loaded.
 if [ -f /etc/nftables.conf ] && [ -z "$(nft list ruleset 2>/dev/null)" ]; then

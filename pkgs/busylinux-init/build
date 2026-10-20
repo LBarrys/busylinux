@@ -17,7 +17,7 @@ for s in syslogd klogd crond ntpd seatd dbus dhcp acpid; do
     install -Dm755 "sv-$s" "$1/etc/service/$s/run"
 done
 
-for s in crond ntpd seatd dbus dhcp; do
+for s in ntpd seatd; do
     install -Dm755 svlog "$1/etc/service/$s/log/run"
 done
 

@@ -1,0 +1,9 @@
+#!/bin/sh -e
+# GMP, Readline and ncurses (GNU) give way to the bundled mini-gmp and no `nft -i`.
+sed -i '1i#include "config.h"' src/proto.c
+./configure --prefix=/usr --sysconfdir=/usr/share --localstatedir=/var \
+    --disable-static --disable-man-doc --with-mini-gmp --without-cli --with-json
+make
+make DESTDIR="$1" install
+rm -rf "$1/usr/include" "$1/usr/lib/pkgconfig" "$1/usr/share/doc" "$1/usr/share/man"
+find "$1" -name '*.la' -delete

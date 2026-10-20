@@ -72,7 +72,8 @@ ext4 a minute later. `rcK` gives services 20 seconds to stop. runit supervises
 `syslogd`, `klogd`, `crond`, `ntpd`, `acpid` (the power button powers off),
 `dhcp` (the first network card) and, once installed, `seatd` and `dbus`.
 
-The firewall (`/etc/nftables.conf`) drops unsolicited inbound and forwarded
+The firewall (`/etc/nftables.conf`, with this repository's `nftables`: no GNU
+GMP or Readline, so no `nft -i`) drops unsolicited inbound and forwarded
 traffic but lets Docker and Podman bridges out and published ports in. With no
 ruleset loaded, `dhcp` keeps the network down.
 
@@ -105,9 +106,12 @@ Docker needs a service:
 apk add docker
 mkdir -p /etc/service/docker/log
 printf '#!/bin/sh\nexec dockerd 2>&1\n' > /etc/service/docker/run
-cp /etc/service/crond/log/run /etc/service/docker/log/
+cp /etc/service/ntpd/log/run /etc/service/docker/log/
 chmod 755 /etc/service/docker/run
 ```
+
+To use `docker` without `doas`, join its group (`doas addgroup alice docker`)
+and log in again. Membership amounts to root: a container can mount `/`.
 
 ## License
 

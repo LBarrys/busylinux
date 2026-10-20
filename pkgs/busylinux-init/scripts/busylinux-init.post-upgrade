@@ -1,0 +1,5 @@
+#!/bin/sh
+# crond, dbus and dhcp log to syslog themselves now; runsv would keep
+# trying to start a log/ without run.
+rm -rf /etc/service/crond/log /etc/service/dbus/log /etc/service/dhcp/log
+exit 0

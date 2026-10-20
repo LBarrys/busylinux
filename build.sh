@@ -6,7 +6,7 @@ set -eu
 ALPINE_MIRROR=${ALPINE_MIRROR:-https://mirror.maeen.sa/alpine}
 PACKAGES=${PACKAGES:-}
 BASE="alpine-baselayout alpine-keys apk-tools busybox busybox-binsh busybox-suid
-      doas e2fsprogs mdev-conf musl-utils amd-ucode nftables runit limine-efi-x86_64
+      doas e2fsprogs mdev-conf musl-utils amd-ucode nftables@busylinux runit limine-efi-x86_64
       linux-busylinux@busylinux busylinux-init@busylinux"
 
 PKGS=/usr/local/share/busylinux/pkgs

@@ -1,4 +1,4 @@
-version=6.18.58
+version=6.18.60
 release=0
 desc="Linux kernel built from tinyconfig for Ryzen 7000 / Radeon RX 7000 hardware"
 url=https://www.kernel.org/

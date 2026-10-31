@@ -162,6 +162,22 @@ exec bwrap --ro-bind $R / \
 
 Then `arch-run steam`, or for a game outside Steam
 `WINEPREFIX=~/Games/name/prefix GAMEID=0 arch-run umu-run ~/Games/name/Game.exe`.
+For launchers, `~/.local/share/applications/steam.desktop` (with the full path,
+as launchers may not search `~/.local/bin`; `Icon=steam` comes from the icon
+theme, such as Papirus):
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=Steam
+Exec=/home/alice/.local/bin/arch-run /usr/bin/steam %U
+Icon=steam
+Terminal=false
+Categories=Network;FileTransfer;Game;
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+PrefersNonDefaultGPU=true
+```
+
 The Steam client is an X11 program: dwl needs Xwayland, or run
 `xwayland-satellite`. Proton's "unable to use parent for game drive" is only a
 notice; keep each game in a folder of its own. "open /dev/snd/seq failed" means

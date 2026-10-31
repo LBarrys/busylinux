@@ -113,6 +113,60 @@ chmod 755 /etc/service/docker/run
 To use `docker` without `doas`, join its group (`doas addgroup alice docker`)
 and log in again. Membership amounts to root: a container can mount `/`.
 
+## Steam and Windows games
+
+Steam and Proton need glibc and 32-bit libraries, which Alpine (musl) lacks.
+They run from an Arch Linux tree in `/opt/root.x86_64`, entered with
+`bubblewrap` (no container engine). Set it up once, as your user:
+
+```sh
+doas apk add bubblewrap zstd
+cd /tmp
+wget https://geo.mirror.pkgbuild.com/iso/latest/archlinux-bootstrap-x86_64.tar.zst
+wget https://geo.mirror.pkgbuild.com/iso/latest/sha256sums.txt
+grep bootstrap-x86_64.tar.zst sha256sums.txt | sha256sum -c
+zstd -dc archlinux-bootstrap-x86_64.tar.zst | doas tar -x -C /opt
+
+R=/opt/root.x86_64
+doas sed -i 's/^#Server = https:\/\/geo/Server = https:\/\/geo/' $R/etc/pacman.d/mirrorlist
+doas sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/
+             /^\[options\]/a DisableSandbox' $R/etc/pacman.conf
+doas sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' $R/etc/locale.gen
+doas touch $R/etc/machine-id
+doas bwrap --cap-add ALL --bind $R / --dev /dev --proc /proc \
+  --ro-bind /etc/resolv.conf /etc/resolv.conf -- /bin/sh -c '
+    pacman-key --init && pacman-key --populate archlinux && locale-gen &&
+    pacman -Syu --noconfirm steam umu-launcher vulkan-radeon lib32-vulkan-radeon lib32-mesa'
+```
+
+`--cap-add ALL` lets root inside switch to pacman's download user;
+`DisableSandbox` because the kernel has no Landlock. Update it later with the
+same `bwrap` line and `pacman -Syu`.
+
+`~/.local/bin/arch-run` runs a command in the tree as you, with your home,
+devices, display and PipeWire:
+
+```sh
+#!/bin/sh
+R=/opt/root.x86_64
+u=/run/user/$(id -u)
+exec bwrap --ro-bind $R / \
+  --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
+  --tmpfs /home --tmpfs /run \
+  --bind "$HOME" "$HOME" --bind "$u" "$u" \
+  --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
+  --ro-bind /etc/resolv.conf /etc/resolv.conf \
+  --ro-bind-try /etc/machine-id /etc/machine-id \
+  -- "$@"
+```
+
+Then `arch-run steam`, or for a game outside Steam
+`WINEPREFIX=~/Games/name/prefix GAMEID=0 arch-run umu-run ~/Games/name/Game.exe`.
+The Steam client is an X11 program: dwl needs Xwayland, or run
+`xwayland-satellite`. Proton's "unable to use parent for game drive" is only a
+notice; keep each game in a folder of its own. "open /dev/snd/seq failed" means
+no MIDI: the kernel has no ALSA sequencer.
+
 ## License
 
 The build system and `pkgs/busylinux-init/` are MIT; the kernel is GPL-2.0-only.

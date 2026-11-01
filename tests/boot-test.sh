@@ -145,7 +145,7 @@ check update      'b=$(apk list -I busylinux-init libudev-zero) && /root/busylin
 limit=90
 
 # Packages built here must bring their libraries: each program must load.
-send 'ok=0; apk add -q dwl@busylinux gammastep@busylinux pipemixer@busylinux >/tmp/desktop.log 2>&1 && ok=1; for b in dwl gammastep pipemixer; do if ldd /usr/bin/$b 2>&1 | grep -qi error; then echo "$b: libraries missing"; ok=0; fi; done; [ "$ok" = 1 ] && printf "CHECK-%s\\n" desktop || tail -n 5 /tmp/desktop.log'
+send 'ok=0; apk add -q dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux >/tmp/desktop.log 2>&1 && ok=1; for b in dwl gammastep pipemixer cclip cclipd; do if ldd /usr/bin/$b 2>&1 | grep -qi error; then echo "$b: libraries missing"; ok=0; fi; done; [ "$ok" = 1 ] && printf "CHECK-%s\\n" desktop || tail -n 5 /tmp/desktop.log'
 wait_for 'CHECK-desktop$' 600 || fail "desktop packages load"
 pass "desktop packages load"
 

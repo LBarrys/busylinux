@@ -13,8 +13,12 @@ for dev in /sys/class/net/*; do
     # Network cards only: bridges and veths have no device behind them.
     [ -e "$dev/device" ] || continue
     [ "$(cat "$dev/type" 2>/dev/null)" = 1 ] || continue
+    # IPv6 addresses from random bits, not the card's MAC, changed daily.
+    echo 3 > "/proc/sys/net/ipv6/conf/$name/addr_gen_mode" 2>/dev/null
+    echo 2 > "/proc/sys/net/ipv6/conf/$name/use_tempaddr" 2>/dev/null
     ip link set "$name" up
+    # -V '': no "udhcp VERSION" vendor string telling the network the OS.
     # shellcheck disable=SC2093
-    exec udhcpc -f -S -i "$name"
+    exec udhcpc -f -S -V '' -i "$name"
 done
 exec sleep 10

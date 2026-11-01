@@ -7,3 +7,5 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
         unset XDG_RUNTIME_DIR
     fi
 fi
+# mimalloc (secure mode) instead of musl's malloc; musl has no ld.so.preload.
+if [ -e /usr/lib/libmimalloc.so.3 ]; then export LD_PRELOAD=/usr/lib/libmimalloc.so.3; fi

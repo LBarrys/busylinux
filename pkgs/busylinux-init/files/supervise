@@ -1,4 +1,6 @@
 #!/bin/sh
 command -v runsvdir > /dev/null 2>&1 || { sleep 3600; exit 0; }
 [ -d /etc/service ] || { sleep 3600; exit 0; }
+# mimalloc (secure mode) instead of musl's malloc; musl has no ld.so.preload.
+if [ -e /usr/lib/libmimalloc.so.3 ]; then export LD_PRELOAD=/usr/lib/libmimalloc.so.3; fi
 exec runsvdir /etc/service

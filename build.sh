@@ -36,10 +36,12 @@ for r in $(recipes); do
     if [ -f "$REPO/$r-$pkgver.apk" ] && [ "$(cat "$CACHE/stamps/$r" 2>/dev/null)" = "$s" ]; then
         log "$r $pkgver: cached"
     elif [ -f "/build/prebuilt/$r.apk" ]; then
-        # Built by an earlier run from the same recipe (CI); signed again with this key.
+        # Built by an earlier run from the same recipe (CI), signed with that
+        # run's key: sign it again with this one. adbsign exits 0 on errors.
         log "$r $pkgver: prebuilt"
         cp "/build/prebuilt/$r.apk" "$REPO/$r-$pkgver.apk"
-        apk adbsign -q --reset-signatures --sign-key "$KEY" "$REPO/$r-$pkgver.apk"
+        apk adbsign --allow-untrusted --reset-signatures --sign-key "$KEY" "$REPO/$r-$pkgver.apk"
+        apk verify "$REPO/$r-$pkgver.apk" > /dev/null || die "$r: could not sign the prebuilt package"
         echo "$s" > "$CACHE/stamps/$r"
     else
         build_pkg "$r" "$(field "$r" release)"

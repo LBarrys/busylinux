@@ -40,6 +40,7 @@ tree() {
     sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/' "$R/etc/pacman.conf"
     sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' "$R/etc/locale.gen"
     touch "$R/etc/machine-id"
+    mkdir -p "$R/mnt" "$R/media"
     [ $# -gt 0 ] || set -- steam umu-launcher mangohud lib32-mangohud \
         vulkan-radeon lib32-vulkan-radeon lib32-mesa
     # --cap-add ALL lets pacman switch to its download user (Landlock-confined).

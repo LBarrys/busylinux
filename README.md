@@ -75,6 +75,10 @@ swap (half the RAM, zstd), loads sysctls and `/etc/modules-load.d`, starts the d
 ext4 a minute later and last runs `/etc/rc.local`, yours to fill. `rcK` gives services 20 seconds to stop. runit supervises
 `syslogd`, `klogd`, `crond`, `ntpd`, `acpid` (the power button powers off),
 `dhcp` (the first network card) and, once installed, `seatd` and `dbus`.
+Services and login sessions allocate memory with mimalloc in secure mode
+(`LD_PRELOAD`, as musl has no `ld.so.preload`); `doas` and setuid programs keep
+musl's own. The network card's IPv6 addresses come from random bits, not its
+MAC, and DHCP requests do not name the OS.
 
 The firewall (`/etc/nftables.conf`, with this repository's `nftables`: no GNU
 GMP or Readline, so no `nft -i`) drops unsolicited inbound and forwarded
@@ -160,7 +164,7 @@ exec bwrap --ro-bind $R / \
   --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
   --tmpfs /home --tmpfs /run \
   --bind "$HOME" "$HOME" --bind "$u" "$u" \
-  --bind-try /mnt /mnt --bind-try /media /media \
+  --bind-try /mnt /mnt --bind-try /media /media --unsetenv LD_PRELOAD \
   --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
   --ro-bind /etc/resolv.conf /etc/resolv.conf \
   --ro-bind-try /etc/machine-id /etc/machine-id \

@@ -48,7 +48,7 @@ case $KEYMAP in
     *) die "--keymap: expected LAYOUT/VARIANT" ;;
 esac
 TAR=''
-for d in ./out "$(dirname "$0")/out"; do [ -f "$d/rootfs.tar.gz" ] && TAR=$d/rootfs.tar.gz && break; done
+for d in ./out "$(dirname "$0")/../out"; do [ -f "$d/rootfs.tar.gz" ] && TAR=$d/rootfs.tar.gz && break; done
 [ -n "$TAR" ] || die "no out/rootfs.tar.gz; run the build first"
 for t in sgdisk mkfs.vfat mkfs.ext4; do
     command -v "$t" > /dev/null || die "$t is missing (apk add sgdisk dosfstools e2fsprogs)"

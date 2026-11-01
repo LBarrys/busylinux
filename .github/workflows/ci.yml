@@ -18,7 +18,7 @@ jobs:
       - name: shellcheck
         run: |
           f=pkgs/busylinux-init/files
-          shellcheck -S warning -s sh *.sh tests/*.sh .github/*.sh pkgs/*/build \
+          shellcheck -S warning -s sh tools/*.sh tests/*.sh .github/*.sh pkgs/*/build \
             "$f"/rc? "$f"/rc.local "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
             "$f"/busylinux.sh
 
@@ -45,7 +45,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: cache
-          key: build-${{ hashFiles('Dockerfile', '*.sh', 'pkgs/**') }}
+          key: build-${{ hashFiles('Dockerfile', 'tools/*.sh', 'pkgs/**') }}
           # build.sh rebuilds only the recipes that changed.
           restore-keys: build-
 
@@ -54,7 +54,7 @@ jobs:
       - name: Prebuilt kernel
         id: kernel
         run: |
-          key=kernel-$({ find Dockerfile lib.sh pkgs/linux-busylinux -type f | LC_ALL=C sort |
+          key=kernel-$({ find Dockerfile tools/lib.sh pkgs/linux-busylinux -type f | LC_ALL=C sort |
                          xargs sha256sum; echo VM_SUPPORT=1; } | sha256sum | cut -c1-16)
           echo "key=$key" >> "$GITHUB_OUTPUT"
           mkdir -p prebuilt

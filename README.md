@@ -21,10 +21,10 @@ option is lost or an excluded one comes back.
 | | |
 |---|---|
 | `pkgs/NAME/` | a recipe: `meta`, `build`, optional `sources` + `sha256sums`, `files/`, `scripts/` |
-| `lib.sh` | builds a recipe into a signed `.apk` |
-| `build.sh` | builds every recipe and `out/rootfs.tar.gz`, in the container |
-| `install.sh` | installs `rootfs.tar.gz` onto a disk |
-| `update.sh` | rebuilds recipes on the installed machine |
+| `tools/lib.sh` | builds a recipe into a signed `.apk` |
+| `tools/build.sh` | builds every recipe and `out/rootfs.tar.gz`, in the container |
+| `tools/install.sh` | installs `rootfs.tar.gz` onto a disk |
+| `tools/update.sh` | rebuilds recipes on the installed machine |
 | `tests/boot-test.sh` | installs to a disk image and boots it in QEMU (CI) |
 
 ## Build and install
@@ -43,7 +43,7 @@ From an Alpine live USB, as root, with Secure Boot off (this erases the disk):
 
 ```sh
 apk add sgdisk dosfstools e2fsprogs efibootmgr tzdata kbd-bkeymaps
-./install.sh --disk /dev/nvme0n1 --user alice --timezone Europe/Berlin --keymap de/de-latin1
+tools/install.sh --disk /dev/nvme0n1 --user alice --timezone Europe/Berlin --keymap de/de-latin1
 ```
 
 ## Updating
@@ -54,9 +54,9 @@ the machine, as root:
 
 ```sh
 git pull
-./update.sh                   # list the recipes
-./update.sh linux-busylinux   # the kernel
-./update.sh --all             # everything
+tools/update.sh                   # list the recipes
+tools/update.sh linux-busylinux   # the kernel
+tools/update.sh --all             # everything
 ```
 
 A weekly workflow opens a pull request when a new kernel of the series is out,

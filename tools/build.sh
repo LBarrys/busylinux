@@ -14,7 +14,7 @@ CACHE=/build/cache OUT=/build/out WORK=/build/work ROOT=/build/rootfs
 SRC=$CACHE/sources REPO=$CACHE/packages/x86_64 KEY=$CACHE/keys/busylinux.rsa
 LOCAL=/var/lib/busylinux/repo
 export VM_SUPPORT=${VM_SUPPORT:-0} MENUCONFIG=${MENUCONFIG:-0}
-# shellcheck source=lib.sh
+# shellcheck source=tools/lib.sh
 . /usr/local/share/busylinux/lib.sh
 
 # Everything a package is built from; a change rebuilds it.

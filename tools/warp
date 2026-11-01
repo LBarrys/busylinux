@@ -9,7 +9,7 @@ usage() {
     warp status    show the interface
 
 tools/warp-setup makes /etc/wireguard/wgcf-profile.conf and installs this as
-/usr/local/sbin/warp. The tunnel's addresses come from that profile; a stripped
+/usr/sbin/warp. The tunnel's addresses come from that profile; a stripped
 /etc/wireguard/wgcf.conf also works, with WG_ADDR (172.16.0.2/32).
 Not a kill switch: if the tunnel drops, traffic goes out directly.
 EOT

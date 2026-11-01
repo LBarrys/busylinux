@@ -69,6 +69,19 @@ strip_tree() {
     done
 }
 
+# so:NAME for each shared library the ELF files under $1 need and do not ship,
+# as abuild adds them: the -dev packages that pulled them in are gone after the build.
+so_depends() {
+    command -v readelf > /dev/null || return 0
+    own=$(find "$1" -name '*.so*' | sed 's|.*/||')
+    find "$1" -type f | while read -r f; do
+        case $(head -c 4 "$f" | tr -d '\000') in *ELF) ;; *) continue ;; esac
+        readelf -d "$f" 2>/dev/null | sed -n 's/.*(NEEDED).*\[\(.*\)\]$/\1/p'
+    done | sort -u | while read -r so; do
+        case " $(echo $own) " in *" $so "*) ;; *) printf 'so:%s ' "$so" ;; esac
+    done
+}
+
 # build_pkg RECIPE RELEASE: builds $REPO/RECIPE-VERSION-rRELEASE.apk, signed with $KEY.
 build_pkg() {
     r=$1 version=$(field "$1" version)
@@ -79,6 +92,8 @@ build_pkg() {
 
     deps=$(field "$r" makedepends)
     ! grep -qs '^git+' "$PKGS/$r/sources" || deps="$deps git"
+    # readelf, for the libraries the result links against.
+    [ -z "${deps# }" ] || deps="$deps binutils"
     # shellcheck disable=SC2086
     [ -z "${deps# }" ] || apk add -q --virtual .busylinux-build $deps ||
         die "$r: could not install $deps"
@@ -87,6 +102,7 @@ build_pkg() {
     ( cd "$dir/src" && MAKEFLAGS=-j$(nproc) sh -e "$PKGS/$r/build" "$dir/pkg" "$version" ) ||
         die "$r: build failed"
     case " $(field "$r" options) " in *" nostrip "*) ;; *) strip_tree "$dir/pkg" ;; esac
+    sodeps=$(so_depends "$dir/pkg")
     [ -z "${deps# }" ] || apk del -q .busylinux-build
 
     set -- --info "name:$r" --info "version:$pkgver" --info "arch:$(apk --print-arch)" \
@@ -94,6 +110,7 @@ build_pkg() {
         --info "url:$(field "$r" url)" --info "origin:$r"
     for k in depends provides replaces provider_priority; do
         v=$(field "$r" $k)
+        [ "$k" != depends ] || v=$(echo $v $sodeps)
         [ -z "$v" ] || set -- "$@" --info "$(echo "$k" | tr _ -):$v"
     done
     for s in "$PKGS/$r/scripts/$r".*; do

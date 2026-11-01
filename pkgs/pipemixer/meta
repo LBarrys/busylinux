@@ -1,5 +1,5 @@
 version=0.5.1
-release=100
+release=101
 desc="TUI volume control for PipeWire"
 url=https://github.com/heather7283/pipemixer
 license=GPL-3.0-or-later

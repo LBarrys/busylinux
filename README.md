@@ -2,7 +2,7 @@
 
 A small musl system for one machine: **Alpine Linux edge** with BusyBox init and
 runit instead of OpenRC, and a `tinyconfig` kernel. Everything but the kernel,
-init and two patched libraries comes straight from Alpine.
+init, two patched libraries, nftables and wgcf comes straight from Alpine.
 
 ```
 CPU     AMD Ryzen 7 7800X3D                      GPU    Radeon RX 7900 GRE -> amdgpu
@@ -163,8 +163,9 @@ no MIDI: the kernel has no ALSA sequencer.
 ## Cloudflare WARP
 
 Cloudflare's own client needs glibc and policy routing, which the kernel leaves
-out. WARP is WireGuard, though: `wgcf` makes a profile and `tools/warp` brings
-it up with `wg` and `ip` alone (no bash `wg-quick`), as `warp`:
+out. WARP is WireGuard, though: `wgcf` (`pkgs/wgcf`, newer than Alpine's) makes
+a profile and `tools/warp` brings it up with `wg` and `ip` alone (no bash
+`wg-quick`), as `warp`:
 
 ```sh
 tools/warp-setup     # wgcf, wg, an account and /etc/wireguard/wgcf-profile.conf

@@ -1,0 +1,6 @@
+#!/bin/sh -e
+# Static, without the build path or VCS stamp; Go modules come from go.sum.
+export CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS="-trimpath -buildvcs=false -mod=readonly"
+export GOPATH=$PWD/.go GOCACHE=$PWD/.cache
+go build -ldflags "-s -w" -o wgcf
+install -Dm755 wgcf "$1/usr/bin/wgcf"

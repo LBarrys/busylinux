@@ -1,0 +1,6 @@
+version=2.3.1
+release=0
+desc="Unofficial CLI for Cloudflare WARP: registers an account, writes a WireGuard profile"
+url=https://github.com/ViRb3/wgcf
+license=MIT
+makedepends="go"

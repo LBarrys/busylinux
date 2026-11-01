@@ -58,7 +58,7 @@ echo 'ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100' >> "$work/mnt/etc/initta
 echo 'echo ran > /run/rc-local-ran' >> "$work/mnt/etc/rc.local"
 mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/busylinux/tools" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
 cp "$top/tools/update.sh" "$top/tools/lib.sh" "$work/mnt/root/busylinux/tools/"
-cp -R "$top/pkgs/busylinux-init" "$work/mnt/root/busylinux/pkgs/"
+cp -R "$top/pkgs/busylinux-init" "$top/pkgs/libudev-zero" "$work/mnt/root/busylinux/pkgs/"
 openssl genrsa -out "$work/mnt/root/keys/local.rsa" 2048 2>/dev/null
 openssl rsa -in "$work/mnt/root/keys/local.rsa" -pubout \
     -out "$work/mnt/etc/apk/keys/local.rsa.pub" 2>/dev/null
@@ -140,7 +140,8 @@ check mdevd       'pidof mdevd >/dev/null'
 echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
 check hotplug     'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
 limit=600
-check update      'b=$(apk list -I busylinux-init) && /root/busylinux/tools/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init) && [ "$a" != "$b" ] || { tail -n 20 /tmp/update.log; false; }'
+# In the build root: libudev-zero needs build-base, beside the installed libudev-zero.
+check update      'b=$(apk list -I busylinux-init libudev-zero) && /root/busylinux/tools/update.sh --yes busylinux-init libudev-zero >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init libudev-zero) && [ "$(echo "$a" | wc -l)" = 2 ] && [ -z "$(printf "%s\n%s\n" "$a" "$b" | sort | uniq -d)" ] && ! apk info -e build-base || { tail -n 20 /tmp/update.log; false; }'
 limit=90
 
 # Packages built here must bring their libraries: each program must load.

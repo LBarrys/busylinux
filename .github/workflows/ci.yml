@@ -18,7 +18,7 @@ jobs:
       - name: shellcheck
         run: |
           f=pkgs/busylinux-init/files
-          shellcheck -S warning -s sh tools/*.sh tests/*.sh .github/*.sh pkgs/*/build \
+          shellcheck -S warning -s sh tools/* tests/*.sh .github/*.sh pkgs/*/build \
             "$f"/rc? "$f"/rc.local "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
             "$f"/busylinux.sh
 

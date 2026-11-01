@@ -128,51 +128,25 @@ and log in again. Membership amounts to root: a container can mount `/`.
 set for Proton already. Steam and Proton need glibc and 32-bit libraries,
 which Alpine (musl) lacks.
 They run from an Arch Linux tree in `/opt/root.x86_64`, entered with
-`bubblewrap` (no container engine). Set it up once, as your user:
+`bubblewrap` (no container engine), through `tools/arch-chroot`. Copy it where
+your launcher finds it and set the tree up once:
 
 ```sh
 doas apk add bubblewrap zstd
-cd /tmp
-wget https://geo.mirror.pkgbuild.com/iso/latest/archlinux-bootstrap-x86_64.tar.zst
-wget https://geo.mirror.pkgbuild.com/iso/latest/sha256sums.txt
-grep bootstrap-x86_64.tar.zst sha256sums.txt | sha256sum -c
-zstd -dc archlinux-bootstrap-x86_64.tar.zst | doas tar -x -C /opt
-
-R=/opt/root.x86_64
-doas sed -i 's/^#Server = https:\/\/geo/Server = https:\/\/geo/' $R/etc/pacman.d/mirrorlist
-doas sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/' $R/etc/pacman.conf
-doas sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' $R/etc/locale.gen
-doas touch $R/etc/machine-id
-doas bwrap --cap-add ALL --bind $R / --dev /dev --proc /proc \
-  --ro-bind /etc/resolv.conf /etc/resolv.conf -- /bin/sh -c '
-    pacman-key --init && pacman-key --populate archlinux && locale-gen &&
-    pacman -Syu --noconfirm steam umu-launcher vulkan-radeon lib32-vulkan-radeon lib32-mesa'
+install -Dm755 tools/arch-chroot ~/.local/bin/arch-chroot
+arch-chroot setup                       # Steam, umu-launcher, Radeon Vulkan
+arch-chroot pacman -S mangohud lib32-mangohud
+arch-chroot update                      # later: pacman -Syu
 ```
 
-`--cap-add ALL` lets root inside switch to pacman's download user, which
-Landlock then confines to the download folder. Update it later with the same
-`bwrap` line and `pacman -Syu`.
+Root in the tree gets `--cap-add ALL`, so pacman can switch to its download
+user, which Landlock then confines to the download folder. Programs run as you,
+with your home, drives under `/mnt` and `/media`, devices, display and
+PipeWire, and without `LD_PRELOAD`: the tree's glibc cannot load musl's
+mimalloc.
 
-`~/.local/bin/arch-run` runs a command in the tree as you, with your home,
-drives under `/mnt` and `/media`, devices, display and PipeWire:
-
-```sh
-#!/bin/sh
-R=/opt/root.x86_64
-u=/run/user/$(id -u)
-exec bwrap --ro-bind $R / \
-  --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
-  --tmpfs /home --tmpfs /run \
-  --bind "$HOME" "$HOME" --bind "$u" "$u" \
-  --bind-try /mnt /mnt --bind-try /media /media --unsetenv LD_PRELOAD \
-  --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
-  --ro-bind /etc/resolv.conf /etc/resolv.conf \
-  --ro-bind-try /etc/machine-id /etc/machine-id \
-  -- "$@"
-```
-
-Then `arch-run steam`, or for a game outside Steam
-`WINEPREFIX=~/Games/name/prefix GAMEID=0 arch-run umu-run ~/Games/name/Game.exe`.
+Then `arch-chroot steam`, or for a game outside Steam
+`WINEPREFIX=~/Games/name/prefix GAMEID=0 arch-chroot umu-run ~/Games/name/Game.exe`.
 For launchers, `~/.local/share/applications/steam.desktop` (with the full path,
 as launchers may not search `~/.local/bin`; `Icon=steam` comes from the icon
 theme, such as Papirus):
@@ -181,7 +155,7 @@ theme, such as Papirus):
 [Desktop Entry]
 Type=Application
 Name=Steam
-Exec=/home/alice/.local/bin/arch-run /usr/bin/steam %U
+Exec=/home/alice/.local/bin/arch-chroot /usr/bin/steam %U
 Icon=steam
 Terminal=false
 Categories=Network;FileTransfer;Game;
@@ -189,9 +163,8 @@ MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
 PrefersNonDefaultGPU=true
 ```
 
-MangoHud also goes into the tree, as games load the tree's libraries:
-`pacman -S mangohud lib32-mangohud` with the `bwrap` line above. Test it with
-`arch-run mangohud vkcube` (from `vulkan-tools`), then use `MANGOHUD=1 %command%`
+MangoHud goes into the tree, as games load the tree's libraries. Test it with
+`arch-chroot mangohud vkcube` (from `vulkan-tools`), then use `MANGOHUD=1 %command%`
 as a game's launch option. In `~/.config/MangoHud/MangoHud.conf`, leave out
 `font_file`: Steam runs games in its own runtime, where host font paths do not
 exist, and a missing font stops the game. `fps_limit=60` keeps the CPU cooler.
@@ -200,6 +173,26 @@ The Steam client is an X11 program: dwl needs Xwayland, or run
 `xwayland-satellite`. Proton's "unable to use parent for game drive" is only a
 notice; keep each game in a folder of its own. "open /dev/snd/seq failed" means
 no MIDI: the kernel has no ALSA sequencer.
+
+## Cloudflare WARP
+
+Cloudflare's own client needs glibc and policy routing, which the kernel leaves
+out. WARP is WireGuard, though: `wgcf` makes a profile and `tools/warp` brings
+it up with `wg` and `ip` alone (no bash `wg-quick`):
+
+```sh
+doas apk add wgcf@testing wireguard-tools-wg
+wgcf register --accept-tos && wgcf generate
+doas install -Dm600 wgcf-profile.conf /etc/wireguard/wgcf-profile.conf
+tools/warp on        # all traffic and DNS through Cloudflare
+wget -qO- https://www.cloudflare.com/cdn-cgi/trace | grep warp   # warp=on
+tools/warp off
+```
+
+It routes `0.0.0.0/1` and `128.0.0.0/1` (and IPv6 halves) into the tunnel, so
+DHCP renewals, which only replace the default route, leave it alone, and locks
+`/etc/resolv.conf` to Cloudflare's DNS until `warp off`. It is not a kill
+switch: if the tunnel drops, traffic goes out directly.
 
 ## License
 

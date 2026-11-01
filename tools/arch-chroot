@@ -1,0 +1,86 @@
+#!/bin/sh
+# An Arch Linux tree for Steam and other glibc programs, entered with bubblewrap.
+set -eu
+
+usage() {
+    cat <<'EOT'
+    arch-chroot setup [PACKAGE...]   download, verify and set up the tree
+    arch-chroot update               pacman -Syu in the tree
+    arch-chroot pacman ARGS...       pacman in the tree, e.g. -S mangohud
+    arch-chroot root [COMMAND...]    a root shell or command in the tree
+    arch-chroot [run] COMMAND...     COMMAND in the tree as you, e.g. steam
+
+The tree is /opt/root.x86_64 (ARCH_ROOT to change it). setup installs
+Steam, umu-launcher and the Radeon Vulkan drivers unless given packages.
+Root commands go through doas.
+EOT
+}
+
+R=${ARCH_ROOT:-/opt/root.x86_64}
+MIRROR=https://geo.mirror.pkgbuild.com
+die() { printf 'arch-chroot: %s\n' "$*" >&2; exit 1; }
+as_root() { [ "$(id -u)" = 0 ] || exec doas env ARCH_ROOT="$R" "$0" "$@"; }
+
+# Root in the tree. --cap-add ALL lets pacman switch to its download user,
+# which Landlock then confines to the download folder.
+in_root() {
+    exec bwrap --cap-add ALL --bind "$R" / --dev /dev --proc /proc \
+        --ro-bind /etc/resolv.conf /etc/resolv.conf -- "$@"
+}
+
+setup() {
+    [ ! -e "$R" ] || die "$R exists already; use update"
+    for t in bwrap zstd wget sha256sum; do
+        command -v "$t" > /dev/null || die "$t is missing (apk add bubblewrap zstd)"
+    done
+    tmp=$(mktemp -d /var/tmp/arch-chroot.XXXXXX)
+    trap 'rm -rf "$tmp"' EXIT
+    (cd "$tmp"
+     wget -q "$MIRROR/iso/latest/archlinux-bootstrap-x86_64.tar.zst"
+     wget -q "$MIRROR/iso/latest/sha256sums.txt"
+     grep ' archlinux-bootstrap-x86_64.tar.zst$' sha256sums.txt | sha256sum -c -) ||
+        die "download or checksum failed"
+    zstd -dc "$tmp/archlinux-bootstrap-x86_64.tar.zst" | tar -x -C "$tmp"
+    mkdir -p "${R%/*}"
+    mv "$tmp/root.x86_64" "$R"
+    rm -rf "$tmp"
+    trap - EXIT
+
+    sed -i 's|^#Server = https://geo|Server = https://geo|' "$R/etc/pacman.d/mirrorlist"
+    sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/' "$R/etc/pacman.conf"
+    sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' "$R/etc/locale.gen"
+    touch "$R/etc/machine-id"
+    [ $# -gt 0 ] || set -- steam umu-launcher vulkan-radeon lib32-vulkan-radeon lib32-mesa
+    in_root /bin/sh -c 'pacman-key --init && pacman-key --populate archlinux &&
+        locale-gen && pacman -Syu --noconfirm "$@"' sh "$@"
+}
+
+# You in the tree: your home, drives, devices, display and PipeWire. The tree's
+# glibc cannot load musl's mimalloc, hence no LD_PRELOAD.
+run() {
+    [ -d "$R" ] || die "no tree at $R; run arch-chroot setup first"
+    u=/run/user/$(id -u)
+    exec bwrap --ro-bind "$R" / \
+        --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
+        --tmpfs /home --tmpfs /run \
+        --bind "$HOME" "$HOME" --bind-try "$u" "$u" \
+        --bind-try /mnt /mnt --bind-try /media /media --unsetenv LD_PRELOAD \
+        --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
+        --ro-bind /etc/resolv.conf /etc/resolv.conf \
+        --ro-bind-try /etc/machine-id /etc/machine-id \
+        -- "$@"
+}
+
+case ${1:-} in
+    ''|-h|--help) usage ;;
+    setup)  as_root "$@"; shift; setup "$@" ;;
+    update) as_root "$@"; [ -d "$R" ] || die "no tree at $R"
+            in_root pacman -Syu ;;
+    pacman) as_root "$@"; shift; [ -d "$R" ] || die "no tree at $R"
+            in_root pacman "$@" ;;
+    root)   as_root "$@"; shift; [ -d "$R" ] || die "no tree at $R"
+            [ $# -gt 0 ] || set -- /bin/bash
+            in_root "$@" ;;
+    run)    shift; [ $# -gt 0 ] || die "run what?"; run "$@" ;;
+    *)      run "$@" ;;
+esac

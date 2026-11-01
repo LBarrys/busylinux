@@ -99,10 +99,9 @@ Log in on tty1 and run `dbus-run-session sway`, starting `pipewire`,
 `pipewire-pulse`, `wireplumber` and `/usr/libexec/xdg-desktop-portal` from the
 Sway config.
 
-`rcS` runs the first device manager installed: `mdevd` (with libudev-zero),
-`eudev`, libudev-zero's relay for BusyBox `mdev`, or plain `mdev -d`, which
-loads no modules, so list them in `/etc/modules-load.d`. This repository's
-`libudev-zero` shows sound cards to PipeWire and ships the relay. Logins on
+`rcS` runs `mdevd` as the device manager, with `/etc/mdev.conf`, which also
+loads modules; it passes each event on to libudev-zero (`-O 4`), as Alice Linux
+does. This repository's `libudev-zero` shows sound cards to PipeWire. Logins on
 tty1-3 may use realtime priority (`/etc/inittab`), so PipeWire's audio threads
 get it without rtkit.
 `/etc/pipewire/pipewire.conf.d/10-busylinux.conf` keeps PipeWire's buffers at

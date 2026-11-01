@@ -135,8 +135,8 @@ check reload      'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/d
 # A bridge sorts before eth0; DHCP must still go to the network card.
 check dhcp-bridge 'ip link add br-test type bridge && ip link set br-test up && sv restart /etc/service/dhcp >/dev/null; sleep 2; pgrep -f "udhcpc .*-i eth0" >/dev/null && ! pgrep -f "udhcpc .*-i br-test" >/dev/null && ip link del br-test'
 check libudev-zero 'apk add -q libudev-zero@busylinux >/dev/null 2>&1 && grep -q SOUND_INITIALIZED /usr/lib/libudev.so.1'
-# mdev through libudev-zero's relay: a hot-plugged sound card gets module and node.
-check mdev-relay  'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
+# mdevd: a hot-plugged sound card gets module and node.
+check mdevd       'pidof mdevd >/dev/null'
 echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
 check hotplug     'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
 check update      'b=$(apk list -I busylinux-init) && /root/busylinux/tools/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init) && [ "$a" != "$b" ] || { tail -n 20 /tmp/update.log; false; }'

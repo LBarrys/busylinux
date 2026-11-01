@@ -68,31 +68,17 @@ for conf in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
     [ -f "$conf" ] && sysctl -e -q -p "$conf"
 done
 
-if command -v mdevd > /dev/null 2>&1; then
-    # -O 4 rebroadcasts to libudev-zero; coldplug waits until mdevd is ready.
-    mkfifo /run/mdevd-ready
-    mdevd -O 4 -D 3 3> /run/mdevd-ready &
-    if read -r _ < /run/mdevd-ready; then
-        mdevd-coldplug -O 4
-    else
-        echo "rcS: mdevd did not start; using mdev"
-        mdev -d
-    fi
-    rm -f /run/mdevd-ready
-elif [ -x /sbin/udevd ]; then
-    udevd -d
-    udevadm trigger --type=subsystems --action=add
-    udevadm trigger --type=devices --action=add
-    udevadm settle -t 10
-elif [ -x /usr/libexec/libudev-zero-mdev ]; then
-    # libudev-zero's relay runs mdev per event and rebroadcasts like mdevd -O 4.
-    /usr/libexec/libudev-zero-mdev
-    mdev -s
-    find /sys/devices -name modalias -type f -print0 | xargs -0 cat 2>/dev/null |
-        sort -u | xargs -r modprobe -q -b -a 2>/dev/null
+# mdevd, with /etc/mdev.conf; -O 4 rebroadcasts each event to libudev-zero.
+# Coldplug waits until it is ready. BusyBox mdev only if mdevd fails.
+mkfifo /run/mdevd-ready
+mdevd -O 4 -D 3 3> /run/mdevd-ready &
+if read -r _ < /run/mdevd-ready; then
+    mdevd-coldplug -O 4
 else
+    echo "rcS: mdevd did not start; using mdev"
     mdev -d
 fi
+rm -f /run/mdevd-ready
 
 for conf in /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf; do
     [ -f "$conf" ] || continue

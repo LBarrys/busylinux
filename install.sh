@@ -9,9 +9,9 @@ Installs BusyLinux from out/rootfs.tar.gz. UEFI only; erases the whole disk.
                [--timezone Europe/Berlin] [--keymap de/de-latin1] [--yes]
 
 Partition 1 is a 1 GiB ESP at /boot (kernel and Limine), partition 2 an ext4
-root labelled BUSYLINUX_ROOT. --timezone needs tzdata and --keymap needs
+root named busylinux-root, which the kernel mounts itself. --timezone needs tzdata and --keymap needs
 kbd-bkeymaps on the system running this script. --user joins video, input,
-audio, seat, wheel and rtkit.
+audio, seat and wheel.
 EOT
 }
 
@@ -62,7 +62,7 @@ fi
 
 log "Partitioning $DISK"
 sgdisk --zap-all "$DISK" > /dev/null
-sgdisk -n 1:0:+1G -t 1:ef00 -c 1:"EFI system" -n 2:0:0 -t 2:8300 -c 2:"BusyLinux root" \
+sgdisk -n 1:0:+1G -t 1:ef00 -c 1:"EFI system" -n 2:0:0 -t 2:8300 -c 2:busylinux-root \
     "$DISK" > /dev/null
 case $DISK in *[0-9]) ESP=${DISK}p1 ROOT=${DISK}p2 ;; *) ESP=${DISK}1 ROOT=${DISK}2 ;; esac
 i=0
@@ -106,14 +106,14 @@ mkdir -p "$MNT/boot/EFI/BOOT"
 cp "$MNT/usr/share/limine/BOOTX64.EFI" "$MNT/boot/EFI/BOOT/"
 entry() {
     printf '\n/%s\n    protocol: linux\n    path: boot():/%s\n    cmdline: %s\n' "$1" "$2" "$3"
-    printf '    module_path: boot():/%s\n' amd-ucode.img initramfs.cpio.gz
+    printf '    module_path: boot():/amd-ucode.img\n'
 }
 {
     printf 'timeout: 3\nserial: yes\n'
-    entry BusyLinux vmlinuz-busylinux "root=LABEL=BUSYLINUX_ROOT ro"
-    entry "BusyLinux (serial console)" vmlinuz-busylinux \
-        "root=LABEL=BUSYLINUX_ROOT ro console=tty0 console=ttyS0,115200"
-    entry "Rescue shell" vmlinuz-busylinux rescue
+    root="root=PARTLABEL=busylinux-root rootfstype=ext4 rootwait ro"
+    entry BusyLinux vmlinuz-busylinux "$root"
+    entry "BusyLinux (serial console)" vmlinuz-busylinux "$root console=tty0 console=ttyS0,115200"
+    entry "Rescue shell" vmlinuz-busylinux "$root init=/bin/sh"
 } > "$MNT/boot/EFI/BOOT/limine.conf"
 if [ -d /sys/firmware/efi/efivars ] && command -v efibootmgr > /dev/null; then
     efibootmgr -c -d "$DISK" -p 1 -l '\EFI\BOOT\BOOTX64.EFI' -L BusyLinux > /dev/null ||
@@ -122,8 +122,8 @@ fi
 
 if [ -n "$USER_NAME" ]; then
     chroot "$MNT" adduser -D "$USER_NAME"
-    for g in seat wheel rtkit; do chroot "$MNT" addgroup -S "$g" 2>/dev/null || :; done
-    for g in video input audio seat wheel rtkit; do chroot "$MNT" addgroup "$USER_NAME" "$g"; done
+    for g in seat wheel; do chroot "$MNT" addgroup -S "$g" 2>/dev/null || :; done
+    for g in video input audio seat wheel; do chroot "$MNT" addgroup "$USER_NAME" "$g"; done
 fi
 if [ -t 0 ]; then
     log "Passwords"

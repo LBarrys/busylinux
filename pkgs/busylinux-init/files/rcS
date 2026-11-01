@@ -24,9 +24,12 @@ if ! mountpoint -q /sys/fs/cgroup; then
     done
 fi
 
-read -r root_dev root_fs root_opts <<EOF
-$(awk '$2 == "/" { print $1, $3, $4; exit }' /proc/mounts)
+read -r root_fs root_opts <<EOF
+$(awk '$2 == "/" { print $3, $4; exit }' /proc/mounts)
 EOF
+# The kernel calls the root it mounted /dev/root; find its real node.
+root_dev=/dev/$(sed -n 's/^DEVNAME=//p' \
+    "/sys/dev/block/$(awk '$5 == "/" { print $3; exit }' /proc/self/mountinfo)/uevent")
 case ",$root_opts," in
     *,ro,*)
         if [ "$root_fs" = ext4 ] && command -v fsck.ext4 > /dev/null 2>&1; then

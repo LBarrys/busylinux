@@ -1,7 +1,4 @@
 #!/bin/sh
 exec 2>&1
 command -v seatd > /dev/null 2>&1 || exec sleep 3600
-if getent group seat > /dev/null 2>&1; then
-    exec seatd -g seat
-fi
-exec seatd -g video
+exec seatd -g seat

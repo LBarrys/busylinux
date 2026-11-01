@@ -67,6 +67,9 @@ container and the Actions.
 
 ## The system
 
+Limine starts the kernel and the AMD microcode, with no initramfs; the kernel
+mounts the partition named `busylinux-root` read-only. The "Rescue shell" entry
+starts `/bin/sh` instead of init (`mount -o remount,rw /` to change files).
 `rcS` mounts the file systems, checks the root, loads the keymap, sets up zram
 swap (half the RAM, zstd), loads sysctls and `/etc/modules-load.d`, starts the device manager and the firewall, and TRIMs
 ext4 a minute later. `rcK` gives services 20 seconds to stop. runit supervises
@@ -81,7 +84,7 @@ ruleset loaded, `dhcp` keeps the network down.
 ## Desktop
 
 ```sh
-apk add linux-firmware-amdgpu libudev-zero@busylinux rtkit@busylinux \
+apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     sway swaybg swayidle swaylock foot xwayland \
@@ -95,8 +98,9 @@ Sway config.
 `rcS` runs the first device manager installed: `mdevd` (with libudev-zero),
 `eudev`, libudev-zero's relay for BusyBox `mdev`, or plain `mdev -d`, which
 loads no modules, so list them in `/etc/modules-load.d`. This repository's
-`libudev-zero` shows sound cards to PipeWire and ships the relay. Its `rtkit`
-needs no polkit: members of the `rtkit` group get realtime audio threads.
+`libudev-zero` shows sound cards to PipeWire and ships the relay. Logins on
+tty1-3 may use realtime priority (`/etc/inittab`), so PipeWire's audio threads
+get it without rtkit.
 `/etc/pipewire/pipewire.conf.d/10-busylinux.conf` keeps PipeWire's buffers at
 1024 samples or more, below which the board's USB audio crackles.
 
@@ -144,7 +148,7 @@ Landlock then confines to the download folder. Update it later with the same
 `bwrap` line and `pacman -Syu`.
 
 `~/.local/bin/arch-run` runs a command in the tree as you, with your home,
-devices, display and PipeWire:
+drives under `/mnt` and `/media`, devices, display and PipeWire:
 
 ```sh
 #!/bin/sh
@@ -154,6 +158,7 @@ exec bwrap --ro-bind $R / \
   --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
   --tmpfs /home --tmpfs /run \
   --bind "$HOME" "$HOME" --bind "$u" "$u" \
+  --bind-try /mnt /mnt --bind-try /media /media \
   --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
   --ro-bind /etc/resolv.conf /etc/resolv.conf \
   --ro-bind-try /etc/machine-id /etc/machine-id \

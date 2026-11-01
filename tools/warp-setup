@@ -22,7 +22,8 @@ case ${1:-} in -h|--help) usage; exit 0 ;; esac
 [ "$(id -u)" = 0 ] || exec doas "$TOOLS/warp-setup" "$@"
 if ip link show wgcf > /dev/null 2>&1; then die "WARP is up; warp off first"; fi
 
-command -v wgcf > /dev/null || apk add -q wgcf@testing
+# This repository's wgcf (Alpine's is older); built here if the repository lacks it.
+apk add -q wgcf@busylinux 2>/dev/null || "$TOOLS/update.sh" --yes wgcf
 command -v wg > /dev/null || apk add -q wireguard-tools-wg
 
 # wgcf keeps its account and profile in the current directory.

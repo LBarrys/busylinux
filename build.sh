@@ -35,6 +35,12 @@ for r in $(recipes); do
     s="$pkgver $(stamp "$r")"
     if [ -f "$REPO/$r-$pkgver.apk" ] && [ "$(cat "$CACHE/stamps/$r" 2>/dev/null)" = "$s" ]; then
         log "$r $pkgver: cached"
+    elif [ -f "/build/prebuilt/$r.apk" ]; then
+        # Built by an earlier run from the same recipe (CI); signed again with this key.
+        log "$r $pkgver: prebuilt"
+        cp "/build/prebuilt/$r.apk" "$REPO/$r-$pkgver.apk"
+        apk adbsign -q --reset-signatures --sign-key "$KEY" "$REPO/$r-$pkgver.apk"
+        echo "$s" > "$CACHE/stamps/$r"
     else
         build_pkg "$r" "$(field "$r" release)"
         echo "$s" > "$CACHE/stamps/$r"

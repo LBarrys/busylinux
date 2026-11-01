@@ -60,7 +60,8 @@ git pull
 ```
 
 A weekly workflow opens a pull request when a new kernel of the series is out,
-after checking its signature. For it to work, allow GitHub Actions to create
+after checking its signature. CI keeps each kernel it compiles in the `kernel-cache`
+release, so later runs on any branch reuse it instead of compiling again. For it to work, allow GitHub Actions to create
 pull requests (Settings > Actions > General). Dependabot updates the
 container and the Actions.
 

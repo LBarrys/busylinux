@@ -121,3 +121,6 @@ ip link set lo up
  awk '$3 == "ext4" { print $2 }' /proc/mounts | while read -r mp; do
      fstrim "$mp" || :
  done) > /dev/null 2>&1 &
+
+# Your own boot commands; apk keeps your version on upgrades.
+if [ -x /etc/rc.local ]; then /etc/rc.local; fi

@@ -1,9 +1,10 @@
 ::sysinit:/etc/init.d/rcS
 ::respawn:/usr/sbin/busylinux-supervise
-# Logins may use realtime priority and nice -11, as PipeWire asks; no rtkit.
-tty1::respawn:/bin/sh -c 'ulimit -e 40 -r 95; exec /sbin/getty 38400 tty1'
-tty2::respawn:/bin/sh -c 'ulimit -e 40 -r 95; exec /sbin/getty 38400 tty2'
-tty3::respawn:/bin/sh -c 'ulimit -e 40 -r 95; exec /sbin/getty 38400 tty3'
+# Logins may use realtime priority and nice -11, as PipeWire asks (no rtkit),
+# and open up to 524288 files, as Proton's esync asks; 1024 unless raised.
+tty1::respawn:/bin/sh -c 'ulimit -e 40 -r 95; ulimit -Hn 524288; exec /sbin/getty 38400 tty1'
+tty2::respawn:/bin/sh -c 'ulimit -e 40 -r 95; ulimit -Hn 524288; exec /sbin/getty 38400 tty2'
+tty3::respawn:/bin/sh -c 'ulimit -e 40 -r 95; ulimit -Hn 524288; exec /sbin/getty 38400 tty3'
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/etc/init.d/rcK
 ::restart:/sbin/init

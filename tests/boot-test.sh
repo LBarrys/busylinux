@@ -55,6 +55,7 @@ mount "${loop}p2" "$work/mnt"
 mount "${loop}p1" "$work/mnt/boot"
 sed -i 's/^timeout: 3$/timeout: 1\ndefault_entry: 2/' "$work/mnt/boot/EFI/BOOT/limine.conf"
 echo 'ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100' >> "$work/mnt/etc/inittab"
+echo 'echo ran > /run/rc-local-ran' >> "$work/mnt/etc/rc.local"
 mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
 cp "$top/update.sh" "$top/lib.sh" "$work/mnt/root/busylinux/"
 cp -R "$top/pkgs/busylinux-init" "$work/mnt/root/busylinux/pkgs/"
@@ -119,6 +120,9 @@ check no-gnu      '! apk info -e gmp >/dev/null && ! apk info -e readline >/dev/
 check syslog      'grep -q "udhcpc.*lease" /var/log/messages && ! pgrep -f "logger -t dhcp" >/dev/null'
 check zram        'grep -q "^/dev/zram0 " /proc/swaps && [ "$(cat /proc/sys/vm/swappiness)" = 180 ]'
 check rtprio      'grep -q "^Max realtime priority *95 *95 " /proc/$(pgrep -f "getty 38400 tty1" | head -n1)/limits'
+check nofile      'grep -q "^Max open files *1024 *524288 " /proc/$(pgrep -f "getty 38400 tty1" | head -n1)/limits'
+check map-count   '[ "$(cat /proc/sys/vm/max_map_count)" = 1048576 ]'
+check rc-local    '[ "$(cat /run/rc-local-ran)" = ran ]'
 check landlock    'dmesg | grep -q "landlock: Up and running"'
 check mglru       '[ "$(cat /sys/kernel/mm/lru_gen/enabled)" != 0x0000 ]'
 check pinned      'grep -q "^v3 @busylinux " /etc/apk/repositories && grep -qx "busylinux-init@busylinux" /etc/apk/world'

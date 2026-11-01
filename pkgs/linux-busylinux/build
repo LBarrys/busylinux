@@ -44,7 +44,7 @@ for symbol in CPU_SUP_INTEL CPU_SUP_HYGON CPU_SUP_CENTAUR CPU_SUP_ZHAOXIN \
               SLUB_TINY WLAN BT IPV6_SIT ISO9660_FS INPUT_MOUSE \
               SND_HDA_CORE SND_HDA_INTEL \
               KVM VHOST_NET USERFAULTFD INTEL_MEI ACPI_BATTERY VGA_CONSOLE \
-              LEGACY_PTYS LEGACY_TIOCSTI LDISC_AUTOLOAD RD_ZSTD; do
+              LEGACY_PTYS LEGACY_TIOCSTI LDISC_AUTOLOAD RD_GZIP RD_ZSTD; do
     if grep -q "^CONFIG_$symbol=[ym]" .config; then crept="$crept $symbol"; fi
 done
 [ -z "$crept" ] || { printf 'config crept back:%s\n' "$crept" >&2; exit 1; }

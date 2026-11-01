@@ -1,0 +1,41 @@
+#!/bin/sh
+# Sets up Cloudflare WARP once: tools, account, profile and the warp command.
+set -eu
+
+usage() {
+    cat <<'EOT'
+    warp-setup [WARP+ LICENSE KEY]
+
+Installs wgcf and wg, registers a free WARP account and writes its WireGuard
+profile to /etc/wireguard (mode 600), then installs tools/warp as
+/usr/local/sbin/warp. Run again to make the profile anew from the same account,
+for example with a license key. Through doas when not root.
+Afterwards: doas warp on.
+EOT
+}
+
+DIR=/etc/wireguard
+TOOLS=$(cd "$(dirname "$0")" && pwd -P)
+die() { printf 'warp-setup: %s\n' "$*" >&2; exit 1; }
+
+case ${1:-} in -h|--help) usage; exit 0 ;; esac
+[ "$(id -u)" = 0 ] || exec doas "$TOOLS/warp-setup" "$@"
+if ip link show wgcf > /dev/null 2>&1; then die "WARP is up; warp off first"; fi
+
+command -v wgcf > /dev/null || apk add -q wgcf@testing
+command -v wg > /dev/null || apk add -q wireguard-tools-wg
+
+# wgcf keeps its account and profile in the current directory.
+umask 077
+mkdir -p "$DIR"
+cd "$DIR"
+if [ ! -f wgcf-account.toml ]; then
+    echo "Registering a WARP account (Cloudflare's terms: https://www.cloudflare.com/application/terms/)"
+    wgcf register --accept-tos
+fi
+[ -z "${1:-}" ] || wgcf update --license-key "$1"
+wgcf generate
+chmod 600 wgcf-account.toml wgcf-profile.conf
+
+install -Dm755 "$TOOLS/warp" /usr/local/sbin/warp
+echo "Done: doas warp on, then doas warp off."

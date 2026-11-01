@@ -128,15 +128,15 @@ and log in again. Membership amounts to root: a container can mount `/`.
 set for Proton already. Steam and Proton need glibc and 32-bit libraries,
 which Alpine (musl) lacks.
 They run from an Arch Linux tree in `/opt/root.x86_64`, entered with
-`bubblewrap` (no container engine), through `tools/arch-chroot`. Copy it where
-your launcher finds it and set the tree up once:
+`bubblewrap` (no container engine). `tools/arch-setup`, run once as your user,
+downloads and checks the tree, enables multilib, installs Steam, umu-launcher,
+MangoHud and the Radeon Vulkan drivers, and puts `arch-chroot` in
+`~/.local/bin` with a Steam entry for launchers. Root steps go through `doas`.
 
 ```sh
-doas apk add bubblewrap zstd
-install -Dm755 tools/arch-chroot ~/.local/bin/arch-chroot
-arch-chroot setup                       # Steam, umu-launcher, Radeon Vulkan
-arch-chroot pacman -S mangohud lib32-mangohud
+tools/arch-setup
 arch-chroot update                      # later: pacman -Syu
+arch-chroot pacman -S vulkan-tools      # more packages
 ```
 
 Root in the tree gets `--cap-add ALL`, so pacman can switch to its download
@@ -147,21 +147,8 @@ mimalloc.
 
 Then `arch-chroot steam`, or for a game outside Steam
 `WINEPREFIX=~/Games/name/prefix GAMEID=0 arch-chroot umu-run ~/Games/name/Game.exe`.
-For launchers, `~/.local/share/applications/steam.desktop` (with the full path,
-as launchers may not search `~/.local/bin`; `Icon=steam` comes from the icon
-theme, such as Papirus):
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Steam
-Exec=/home/alice/.local/bin/arch-chroot /usr/bin/steam %U
-Icon=steam
-Terminal=false
-Categories=Network;FileTransfer;Game;
-MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
-PrefersNonDefaultGPU=true
-```
+The Steam entry is `~/.local/share/applications/steam.desktop`; `Icon=steam`
+comes from the icon theme, such as Papirus.
 
 MangoHud goes into the tree, as games load the tree's libraries. Test it with
 `arch-chroot mangohud vkcube` (from `vulkan-tools`), then use `MANGOHUD=1 %command%`
@@ -178,16 +165,16 @@ no MIDI: the kernel has no ALSA sequencer.
 
 Cloudflare's own client needs glibc and policy routing, which the kernel leaves
 out. WARP is WireGuard, though: `wgcf` makes a profile and `tools/warp` brings
-it up with `wg` and `ip` alone (no bash `wg-quick`):
+it up with `wg` and `ip` alone (no bash `wg-quick`), as `warp`:
 
 ```sh
-doas apk add wgcf@testing wireguard-tools-wg
-wgcf register --accept-tos && wgcf generate
-doas install -Dm600 wgcf-profile.conf /etc/wireguard/wgcf-profile.conf
-tools/warp on        # all traffic and DNS through Cloudflare
+tools/warp-setup     # wgcf, wg, an account and /etc/wireguard/wgcf-profile.conf
+doas warp on         # all traffic and DNS through Cloudflare
 wget -qO- https://www.cloudflare.com/cdn-cgi/trace | grep warp   # warp=on
-tools/warp off
+doas warp off
 ```
+
+`tools/warp-setup KEY` binds a WARP+ license key and makes the profile anew.
 
 It routes `0.0.0.0/1` and `128.0.0.0/1` (and IPv6 halves) into the tunnel, so
 DHCP renewals, which only replace the default route, leave it alone, and locks

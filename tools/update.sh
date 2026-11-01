@@ -5,7 +5,7 @@ usage() {
     cat <<'EOT'
 Builds this repository's packages on the machine itself and installs them.
 
-    update.sh [--yes] recipe...     the named recipes, e.g. rtkit or linux-busylinux
+    update.sh [--yes] recipe...     the named recipes, e.g. libudev-zero or linux-busylinux
     update.sh [--yes] --all         every recipe
     update.sh                       list the recipes
 
@@ -16,11 +16,12 @@ files are kept; the new versions land beside them as .apk-new.
 EOT
 }
 
-PKGS=$(cd "$(dirname "$0")" && pwd -P)/pkgs
+TOOLS=$(cd "$(dirname "$0")" && pwd -P)
+PKGS=${TOOLS%/*}/pkgs
 WORK=/var/tmp/busylinux-update SRC=/var/tmp/busylinux-update/sources
 REPO=/var/lib/busylinux/repo/x86_64 KEY=/root/keys/local.rsa
-# shellcheck source=lib.sh
-. "${PKGS%/pkgs}/lib.sh"
+# shellcheck source=tools/lib.sh
+. "$TOOLS/lib.sh"
 
 YES=0 ALL=0
 while [ $# -gt 0 ]; do

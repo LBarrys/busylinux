@@ -44,7 +44,7 @@ check() {
 
 truncate -s 4G "$work/disk.img"
 loop=$(losetup -fP --show "$work/disk.img")
-(cd "$top" && ./install.sh --disk "$loop" --yes) > "$work/install.log" 2>&1 ||
+(cd "$top" && tools/install.sh --disk "$loop" --yes) > "$work/install.log" 2>&1 ||
     { cat "$work/install.log"; exit 1; }
 pass "install.sh"
 
@@ -56,8 +56,8 @@ mount "${loop}p1" "$work/mnt/boot"
 sed -i 's/^timeout: 3$/timeout: 1\ndefault_entry: 2/' "$work/mnt/boot/EFI/BOOT/limine.conf"
 echo 'ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100' >> "$work/mnt/etc/inittab"
 echo 'echo ran > /run/rc-local-ran' >> "$work/mnt/etc/rc.local"
-mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
-cp "$top/update.sh" "$top/lib.sh" "$work/mnt/root/busylinux/"
+mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/busylinux/tools" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
+cp "$top/tools/update.sh" "$top/tools/lib.sh" "$work/mnt/root/busylinux/tools/"
 cp -R "$top/pkgs/busylinux-init" "$work/mnt/root/busylinux/pkgs/"
 openssl genrsa -out "$work/mnt/root/keys/local.rsa" 2048 2>/dev/null
 openssl rsa -in "$work/mnt/root/keys/local.rsa" -pubout \
@@ -139,7 +139,7 @@ check libudev-zero 'apk add -q libudev-zero@busylinux >/dev/null 2>&1 && grep -q
 check mdev-relay  'kill $(pidof mdev) && /usr/libexec/libudev-zero-mdev && pidof libudev-zero-mdev >/dev/null'
 echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
 check hotplug     'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
-check update      'b=$(apk list -I busylinux-init) && /root/busylinux/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init) && [ "$a" != "$b" ] || { tail -n 20 /tmp/update.log; false; }'
+check update      'b=$(apk list -I busylinux-init) && /root/busylinux/tools/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init) && [ "$a" != "$b" ] || { tail -n 20 /tmp/update.log; false; }'
 
 echo system_powerdown > "$work/mon.in"
 i=0

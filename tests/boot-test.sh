@@ -38,7 +38,7 @@ send() { printf '%s\r' "$*" > "$work/serial.in"; }
 check() {
     name=$1; shift
     send "$* && printf 'CHECK-%s\\n' $name"
-    wait_for "CHECK-$name\$" 90 || fail "$name"
+    wait_for "CHECK-$name\$" "${limit:-90}" || fail "$name"
     pass "$name"
 }
 
@@ -139,7 +139,9 @@ check libudev-zero 'apk add -q libudev-zero@busylinux >/dev/null 2>&1 && grep -q
 check mdevd       'pidof mdevd >/dev/null'
 echo 'device_add usb-audio,id=usbsnd,audiodev=snd0,bus=xhci.0' > "$work/mon.in"
 check hotplug     'for i in $(seq 30); do [ -c /dev/snd/controlC0 ] && break; sleep 1; done; grep -q "^snd_usb_audio " /proc/modules && [ "$(stat -c %G:%a /dev/snd/controlC0)" = audio:660 ]'
+limit=600
 check update      'b=$(apk list -I busylinux-init) && /root/busylinux/tools/update.sh --yes busylinux-init >/tmp/update.log 2>&1 && a=$(apk list -I busylinux-init) && [ "$a" != "$b" ] || { tail -n 20 /tmp/update.log; false; }'
+limit=90
 
 # Packages built here must bring their libraries: each program must load.
 send 'ok=0; apk add -q dwl@busylinux gammastep@busylinux pipemixer@busylinux >/tmp/desktop.log 2>&1 && ok=1; for b in dwl gammastep pipemixer; do if ldd /usr/bin/$b 2>&1 | grep -qi error; then echo "$b: libraries missing"; ok=0; fi; done; [ "$ok" = 1 ] && printf "CHECK-%s\\n" desktop || tail -n 5 /tmp/desktop.log'

@@ -60,6 +60,9 @@ tools/update.sh linux-busylinux   # the kernel
 tools/update.sh --all             # everything
 ```
 
+They build in a separate Alpine root, `/var/tmp/busylinux-update/root`, so build
+tools never land on the system or clash with its packages.
+
 A weekly workflow opens a pull request when a new kernel of the series is out,
 after checking its signature. CI keeps each kernel it compiles in the `kernel-cache`
 release, so later runs on any branch reuse it instead of compiling again. For it to work, allow GitHub Actions to create

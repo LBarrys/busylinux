@@ -1,7 +1,7 @@
 version=1
-release=27
+release=28
 desc="BusyBox init, boot scripts and profile for BusyLinux"
 url=https://busybox.net/
 license=MIT
-depends="busybox busybox-binsh mimalloc3"
+depends="busybox busybox-binsh mimalloc3 mdevd"
 replaces="alpine-baselayout-data alpine-baselayout"

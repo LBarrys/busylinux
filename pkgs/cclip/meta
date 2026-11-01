@@ -1,0 +1,6 @@
+version=3.3.1
+release=0
+desc="Wayland clipboard manager: cclipd daemon and cclip CLI, kept in SQLite"
+url=https://github.com/heather7283/cclip
+license=GPL-3.0-or-later
+makedepends="build-base pkgconf meson sqlite-dev wayland-dev xxhash-dev"

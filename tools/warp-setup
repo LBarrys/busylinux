@@ -6,9 +6,10 @@ usage() {
     cat <<'EOT'
     warp-setup [WARP+ LICENSE KEY]
 
-Installs wgcf and wg, registers a free WARP account and writes its WireGuard
-profile to /etc/wireguard (mode 600), then installs tools/warp as
-/usr/sbin/warp. Run again to make the profile anew from the same account,
+Registers a free WARP account with wgcf and writes its WireGuard profile to
+/etc/wireguard (mode 600), then installs tools/warp as /usr/sbin/warp. warp
+needs only wg (wireguard-tools-wg) beside BusyBox's ip; wgcf is installed for
+this run alone. Run again to make the profile anew from the same account,
 for example with a license key. Through doas when not root.
 Afterwards: doas warp on.
 EOT
@@ -22,9 +23,13 @@ case ${1:-} in -h|--help) usage; exit 0 ;; esac
 [ "$(id -u)" = 0 ] || exec doas "$TOOLS/warp-setup" "$@"
 if ip link show wgcf > /dev/null 2>&1; then die "WARP is up; warp off first"; fi
 
-# This repository's wgcf (Alpine's is older); built here if the repository lacks it.
-apk add -q wgcf@busylinux 2>/dev/null || "$TOOLS/update.sh" --yes wgcf
-command -v wg > /dev/null || apk add -q wireguard-tools-wg
+# This repository's wgcf (Alpine's is older), only for this run; built here if
+# the repository lacks it.
+trap 'apk del -q .warp-setup 2>/dev/null || :; apk del -q wgcf 2>/dev/null || :' EXIT
+if ! apk add -q --virtual .warp-setup wgcf@busylinux 2>/dev/null; then
+    "$TOOLS/update.sh" --yes wgcf
+fi
+apk add -q wireguard-tools-wg
 
 # wgcf keeps its account and profile in the current directory.
 umask 077

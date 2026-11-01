@@ -2,8 +2,8 @@
 
 A small musl system for one machine: **Alpine Linux edge** with BusyBox init and
 runit instead of OpenRC, and a `tinyconfig` kernel. Everything but the kernel,
-init, libudev-zero, nftables, wgcf, dwl, gammastep and pipemixer (`pkgs/`)
-comes straight from Alpine.
+init, libudev-zero, nftables, wgcf, dwl, gammastep, pipemixer and cclip
+(`pkgs/`) comes straight from Alpine.
 
 ```
 CPU     AMD Ryzen 7 7800X3D                      GPU    Radeon RX 7900 GRE -> amdgpu
@@ -95,7 +95,7 @@ ruleset loaded, `dhcp` keeps the network down.
 apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
-    dwl@busylinux gammastep@busylinux pipemixer@busylinux foot \
+    dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
     xdg-desktop-portal xdg-desktop-portal-gtk font-noto
 ```
 
@@ -104,10 +104,11 @@ apk add linux-firmware-amdgpu libudev-zero@busylinux \
 droptiled, alwayscenter, per-monitor tags) built with its `config.h`; change
 that file and run `tools/update.sh dwl`. `gammastep` is Wayland-only, without
 GeoClue: give it a location in `~/.config/gammastep/config.ini`. `pipemixer` is
-a PipeWire mixer in the terminal.
+a PipeWire mixer in the terminal, and `cclip` keeps the clipboard history
+(`cclipd`, started with dwl).
 
 Log in on tty1 and run `dbus-run-session dwl -s 'pipewire & pipewire-pulse &
-wireplumber & /usr/libexec/xdg-desktop-portal & gammastep'`, or put those in a
+wireplumber & /usr/libexec/xdg-desktop-portal & gammastep & cclipd'`, or put those in a
 startup script.
 
 `rcS` runs `mdevd` as the device manager, with `/etc/mdev.conf`, which also
@@ -179,13 +180,15 @@ a profile and `tools/warp` brings it up with `wg` and `ip` alone (no bash
 `wg-quick`), as `warp`:
 
 ```sh
-tools/warp-setup     # wgcf, wg, an account and /etc/wireguard/wgcf-profile.conf
+tools/warp-setup     # an account and /etc/wireguard/wgcf-profile.conf
 doas warp on         # all traffic and DNS through Cloudflare
 wget -qO- https://www.cloudflare.com/cdn-cgi/trace | grep warp   # warp=on
 doas warp off
 ```
 
 `tools/warp-setup KEY` binds a WARP+ license key and makes the profile anew.
+`warp` needs only `wg` (`wireguard-tools-wg`) beside BusyBox's `ip` and
+`chattr`; `wgcf` is installed while `warp-setup` runs and removed after.
 
 It routes `0.0.0.0/1` and `128.0.0.0/1` (and IPv6 halves) into the tunnel, so
 DHCP renewals, which only replace the default route, leave it alone, and locks

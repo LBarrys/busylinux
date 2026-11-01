@@ -57,13 +57,6 @@ if [ "$YES" != 1 ]; then
 fi
 trap 'apk del -q .busylinux-build 2>/dev/null || :' EXIT
 
-# This repository is tagged, so apk never swaps its packages for Alpine's.
-if grep -qx "v3 ${REPO%/*}" /etc/apk/repositories; then
-    sed -i "s|^v3 ${REPO%/*}\$|v3 @busylinux ${REPO%/*}|" /etc/apk/repositories
-    for r in $(recipes); do
-        if grep -qx "$r" /etc/apk/world; then sed -i "s/^$r\$/$r@busylinux/" /etc/apk/world; fi
-    done
-fi
 [ -f "$KEY" ] || { apk add -q --virtual .busylinux-build openssl; new_key /etc/apk/keys; }
 
 pins=''

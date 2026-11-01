@@ -96,6 +96,9 @@ cat "$work/mon.out" > /dev/null &
 
 wait_for 'login: *$' 300 || fail "login prompt"
 pass "UEFI, Limine and login prompt"
+# The kernel mounts the root by partition name; rcS must still find and check it.
+console | grep -q '^Checking /dev/vda2$' || fail "rcS did not check the root file system"
+pass "root found and checked"
 send root
 wait_for '# *$' 30 || fail "root shell"
 send 'stty -echo 2>/dev/null; export PS1="# "'
@@ -115,6 +118,7 @@ check sysrq       '[ "$(cat /proc/sys/kernel/sysrq)" = 244 ]'
 check no-gnu      '! apk info -e gmp >/dev/null && ! apk info -e readline >/dev/null && nft -V | grep -q "json:.*yes"'
 check syslog      'grep -q "udhcpc.*lease" /var/log/messages && ! pgrep -f "logger -t dhcp" >/dev/null'
 check zram        'grep -q "^/dev/zram0 " /proc/swaps && [ "$(cat /proc/sys/vm/swappiness)" = 180 ]'
+check rtprio      'grep -q "^Max realtime priority *95 *95 " /proc/$(pgrep -f "getty 38400 tty1" | head -n1)/limits'
 check landlock    'dmesg | grep -q "landlock: Up and running"'
 check mglru       '[ "$(cat /sys/kernel/mm/lru_gen/enabled)" != 0x0000 ]'
 check pinned      'grep -q "^v3 @busylinux " /etc/apk/repositories && grep -qx "busylinux-init@busylinux" /etc/apk/world'

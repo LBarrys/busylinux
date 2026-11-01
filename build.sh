@@ -72,18 +72,6 @@ repos "$LOCAL" > "$ROOT/etc/apk/repositories"
 sed -i 's/^root:[^:]*:/root::/' "$ROOT/etc/shadow"
 [ -x "$ROOT/sbin/init" ] || die "the image has no /sbin/init"
 
-log "Initramfs"
-I=$WORK/initramfs
-rm -rf "$I"
-mkdir -p "$I/bin" "$I/dev" "$I/lib" "$I/newroot" "$I/proc" "$I/sys"
-mknod -m 600 "$I/dev/console" c 5 1
-mknod -m 666 "$I/dev/null" c 1 3
-cp "$ROOT/bin/busybox" "$I/bin/"
-cp "$ROOT/lib/ld-musl-x86_64.so.1" "$I/lib/"
-cp "$PKGS/busylinux-init/files/initramfs-init" "$I/init"
-chmod 755 "$I/init"
-(cd "$I" && find . | cpio -o -H newc -R 0:0 --quiet) | gzip -9 > "$ROOT/boot/initramfs.cpio.gz"
-
 log "rootfs.tar.gz"
 tar -C "$ROOT" -czf "$OUT/rootfs.tar.gz" .
 [ -z "${HOST_UID:-}" ] || chown "$HOST_UID:${HOST_GID:-$HOST_UID}" "$OUT/rootfs.tar.gz"

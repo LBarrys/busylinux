@@ -19,8 +19,8 @@ jobs:
         run: |
           f=pkgs/busylinux-init/files
           shellcheck -S warning -s sh *.sh tests/*.sh .github/*.sh pkgs/*/build \
-            pkgs/*/scripts/* "$f"/rc? "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
-            "$f"/initramfs-init "$f"/busylinux.sh
+            "$f"/rc? "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
+            "$f"/busylinux.sh
 
       - name: nftables ruleset
         run: |

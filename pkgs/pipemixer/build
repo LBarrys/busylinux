@@ -1,0 +1,4 @@
+#!/bin/sh -e
+meson setup --prefix=/usr --buildtype=release -Dshell-completions=false build
+meson compile -C build
+DESTDIR="$1" meson install --no-rebuild -C build

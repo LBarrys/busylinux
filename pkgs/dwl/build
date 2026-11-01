@@ -1,0 +1,10 @@
+#!/bin/sh -e
+# In this order: the systray patch builds on the bar's.
+for p in bar-0.9 bar-systray-0.9 simple_scratchpad-0.9 warpcursor-0.9 cursortheme-0.9 \
+         attachbottom-0.9 droptiled-0.9 alwayscenter-0.9 monrule-tags-0.9 \
+         keybindings-first-layout; do
+    patch -p1 < "$p.patch"
+done
+# files/config.h is already in place; config.def.h only seeds a missing one.
+make VERSION="$2" PREFIX=/usr XWAYLAND=-DXWAYLAND XLIBS="xcb xcb-icccm"
+make DESTDIR="$1" PREFIX=/usr install

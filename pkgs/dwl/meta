@@ -1,0 +1,9 @@
+version=0.9
+# Above the 0.9-r17 built by hand, so apk prefers this build.
+release=100
+desc="dwm for Wayland, with bar, systray, scratchpad and other patches and this config.h"
+url=https://codeberg.org/dwl/dwl
+license=GPL-3.0-only
+depends="xwayland"
+makedepends="build-base pkgconf dbus-dev fcft-dev libinput-dev libxcb-dev libxkbcommon-dev
+             pixman-dev wayland-dev wayland-protocols wlroots0.20-dev xcb-util-wm-dev"

@@ -1,0 +1,75 @@
+From 667896e35c0fc5f993b944c0aa48d1a52de466be Mon Sep 17 00:00:00 2001
+From: LBarrys <lbarrys@local>
+Date: Thu, 8 Oct 2026 23:28:32 +0000
+Subject: [PATCH] warpcursor: cursor follows the focused window (port of
+ dwl-patches warpcursor to 0.9)
+
+---
+ dwl.c | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/dwl.c b/dwl.c
+index c5e6d2e..2b32da8 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -418,6 +418,7 @@ static void urgent(struct wl_listener *listener, void *data);
+ static void view(const Arg *arg);
+ static void virtualkeyboard(struct wl_listener *listener, void *data);
+ static void virtualpointer(struct wl_listener *listener, void *data);
++static void warpcursor(const Client *c);
+ static Monitor *xytomon(double x, double y);
+ static void xytonode(double x, double y, struct wlr_surface **psurface,
+ 		Client **pc, LayerSurface **pl, double *nx, double *ny);
+@@ -648,6 +649,9 @@ arrange(Monitor *m)
+ 
+ 	if (m->lt[m->sellt]->arrange)
+ 		m->lt[m->sellt]->arrange(m);
++	/* keep the cursor on the focused window when the layout moves it */
++	if (m == selmon)
++		warpcursor(focustop(selmon));
+ 	motionnotify(0, NULL, 0, 0, 0, 0);
+ 	checkidleinhibitor(NULL);
+ }
+@@ -1844,6 +1848,10 @@ focusclient(Client *c, int lift)
+ 	if (locked)
+ 		return;
+ 
++	/* Warp cursor to center of client if it is outside */
++	if (lift)
++		warpcursor(c);
++
+ 	/* Raise client in stacking order if requested */
+ 	if (c && lift)
+ 		wlr_scene_node_raise_to_top(&c->scene->node);
+@@ -3632,6 +3640,28 @@ virtualpointer(struct wl_listener *listener, void *data)
+ 	wlr_seat_set_capabilities(seat, seat->capabilities | WL_SEAT_CAPABILITY_POINTER);
+ }
+ 
++void
++warpcursor(const Client *c)
++{
++	if (cursor_mode != CurNormal)
++		return;
++	if (!c && selmon) {
++		/* nothing focused: move to the middle of the focused monitor,
++		 * unless the cursor is already on it */
++		if (xytomon(cursor->x, cursor->y) != selmon)
++			wlr_cursor_warp_closest(cursor, NULL,
++				selmon->w.x + selmon->w.width / 2.0,
++				selmon->w.y + selmon->w.height / 2.0);
++	} else if (c && !client_is_unmanaged(c) && (cursor->x <= c->geom.x + c->bw
++			|| cursor->x >= c->geom.x + c->geom.width - c->bw
++			|| cursor->y <= c->geom.y + c->bw
++			|| cursor->y >= c->geom.y + c->geom.height - c->bw)) {
++		wlr_cursor_warp_closest(cursor, NULL,
++			c->geom.x + c->geom.width / 2.0,
++			c->geom.y + c->geom.height / 2.0);
++	}
++}
++
+ Monitor *
+ xytomon(double x, double y)
+ {
+-- 
+2.43.0
+

@@ -1,0 +1,6 @@
+version=0.5.1
+release=100
+desc="TUI volume control for PipeWire"
+url=https://github.com/heather7283/pipemixer
+license=GPL-3.0-or-later
+makedepends="build-base pkgconf meson gawk inih-dev ncurses-dev pipewire-dev"

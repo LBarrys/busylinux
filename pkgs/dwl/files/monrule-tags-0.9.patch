@@ -1,0 +1,54 @@
+From d9441c1bfab71e5cfe89e7de1d7483b565afee6e Mon Sep 17 00:00:00 2001
+From: LBarrys <LBarrys@proton.me>
+Date: Mon, 12 Oct 2026 13:58:30 +0000
+Subject: [PATCH] monrule-tags: a tags column in the monitor rules sets the tag
+ a monitor starts on
+
+---
+ config.def.h | 8 ++++----
+ dwl.c        | 3 +++
+ 2 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/config.def.h b/config.def.h
+index d4b913c..33cafaf 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -53,10 +53,10 @@ static const Layout layouts[] = {
+  * WARNING: negative values other than (-1, -1) cause problems with Xwayland clients due to
+  * https://gitlab.freedesktop.org/xorg/xserver/-/issues/899 */
+ static const MonitorRule monrules[] = {
+-   /* name        mfact  nmaster scale layout       rotate/reflect                x    y
+-    * example of a HiDPI laptop monitor:
+-    { "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 }, */
+-	{ NULL,       0.55f, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
++   /* name        mfact  nmaster scale layout       rotate/reflect                x    y    tags
++    * example of a HiDPI laptop monitor starting on tag 2:
++    { "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1,  1 << 1 }, */
++	{ NULL,       0.55f, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1,  0 },
+ 	/* default monitor rule: can be changed but cannot be eliminated; at least one monitor rule must exist */
+ };
+ 
+diff --git a/dwl.c b/dwl.c
+index d3ac2ac..a5b67cf 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -266,6 +266,7 @@ typedef struct {
+ 	const Layout *lt;
+ 	enum wl_output_transform rr;
+ 	int x, y;
++	uint32_t tags; /* tags the monitor starts on, 0 means tag 1 */
+ } MonitorRule;
+ 
+ typedef struct {
+@@ -1380,6 +1381,8 @@ createmon(struct wl_listener *listener, void *data)
+ 			m->nmaster = r->nmaster;
+ 			m->lt[0] = r->lt;
+ 			m->lt[1] = &layouts[LENGTH(layouts) > 1 && r->lt != &layouts[1]];
++			if (r->tags & TAGMASK)
++				m->tagset[0] = m->tagset[1] = r->tags & TAGMASK;
+ 			strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof(m->ltsymbol));
+ 			wlr_output_state_set_scale(&state, r->scale);
+ 			wlr_output_state_set_transform(&state, r->rr);
+-- 
+2.43.0
+

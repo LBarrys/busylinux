@@ -2,7 +2,8 @@
 
 A small musl system for one machine: **Alpine Linux edge** with BusyBox init and
 runit instead of OpenRC, and a `tinyconfig` kernel. Everything but the kernel,
-init, libudev-zero, nftables and wgcf (`pkgs/`) comes straight from Alpine.
+init, libudev-zero, nftables, wgcf, dwl, gammastep and pipemixer (`pkgs/`)
+comes straight from Alpine.
 
 ```
 CPU     AMD Ryzen 7 7800X3D                      GPU    Radeon RX 7900 GRE -> amdgpu
@@ -91,13 +92,20 @@ ruleset loaded, `dhcp` keeps the network down.
 apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
-    sway swaybg swayidle swaylock foot xwayland \
+    dwl@busylinux gammastep@busylinux pipemixer@busylinux foot \
     xdg-desktop-portal xdg-desktop-portal-gtk font-noto
 ```
 
-Log in on tty1 and run `dbus-run-session sway`, starting `pipewire`,
-`pipewire-pulse`, `wireplumber` and `/usr/libexec/xdg-desktop-portal` from the
-Sway config.
+`pkgs/dwl` is dwl 0.9 with Xwayland and the patches in `pkgs/dwl/files`
+(bar with systray, scratchpad, warpcursor, cursor theme, attachbottom,
+droptiled, alwayscenter, per-monitor tags) built with its `config.h`; change
+that file and run `tools/update.sh dwl`. `gammastep` is Wayland-only, without
+GeoClue: give it a location in `~/.config/gammastep/config.ini`. `pipemixer` is
+a PipeWire mixer in the terminal.
+
+Log in on tty1 and run `dbus-run-session dwl -s 'pipewire & pipewire-pulse &
+wireplumber & /usr/libexec/xdg-desktop-portal & gammastep'`, or put those in a
+startup script.
 
 `rcS` runs `mdevd` as the device manager, with `/etc/mdev.conf`, which also
 loads modules; it passes each event on to libudev-zero (`-O 4`), as Alice Linux

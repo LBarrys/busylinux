@@ -1,6 +1,6 @@
 version=0.9
 # Above the 0.9-r17 built by hand, so apk prefers this build.
-release=100
+release=101
 desc="dwm for Wayland, with bar, systray, scratchpad and other patches and this config.h"
 url=https://codeberg.org/dwl/dwl
 license=GPL-3.0-only

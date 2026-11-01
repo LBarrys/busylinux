@@ -130,8 +130,7 @@ zstd -dc archlinux-bootstrap-x86_64.tar.zst | doas tar -x -C /opt
 
 R=/opt/root.x86_64
 doas sed -i 's/^#Server = https:\/\/geo/Server = https:\/\/geo/' $R/etc/pacman.d/mirrorlist
-doas sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/
-             /^\[options\]/a DisableSandbox' $R/etc/pacman.conf
+doas sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/' $R/etc/pacman.conf
 doas sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' $R/etc/locale.gen
 doas touch $R/etc/machine-id
 doas bwrap --cap-add ALL --bind $R / --dev /dev --proc /proc \
@@ -140,9 +139,9 @@ doas bwrap --cap-add ALL --bind $R / --dev /dev --proc /proc \
     pacman -Syu --noconfirm steam umu-launcher vulkan-radeon lib32-vulkan-radeon lib32-mesa'
 ```
 
-`--cap-add ALL` lets root inside switch to pacman's download user;
-`DisableSandbox` because the kernel has no Landlock. Update it later with the
-same `bwrap` line and `pacman -Syu`.
+`--cap-add ALL` lets root inside switch to pacman's download user, which
+Landlock then confines to the download folder. Update it later with the same
+`bwrap` line and `pacman -Syu`.
 
 `~/.local/bin/arch-run` runs a command in the tree as you, with your home,
 devices, display and PipeWire:
@@ -178,6 +177,13 @@ Categories=Network;FileTransfer;Game;
 MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
 PrefersNonDefaultGPU=true
 ```
+
+MangoHud also goes into the tree, as games load the tree's libraries:
+`pacman -S mangohud lib32-mangohud` with the `bwrap` line above. Test it with
+`arch-run mangohud vkcube` (from `vulkan-tools`), then use `MANGOHUD=1 %command%`
+as a game's launch option. In `~/.config/MangoHud/MangoHud.conf`, leave out
+`font_file`: Steam runs games in its own runtime, where host font paths do not
+exist, and a missing font stops the game. `fps_limit=60` keeps the CPU cooler.
 
 The Steam client is an X11 program: dwl needs Xwayland, or run
 `xwayland-satellite`. Proton's "unable to use parent for game drive" is only a

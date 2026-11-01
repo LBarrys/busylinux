@@ -1,0 +1,118 @@
+#!/bin/sh
+# Cloudflare WARP as a plain WireGuard interface, from a wgcf profile.
+set -eu
+
+usage() {
+    cat <<'EOT'
+    warp on        bring the tunnel up and send all traffic and DNS through it
+    warp off       take it down and restore /etc/resolv.conf
+    warp status    show the interface
+
+Set up once (apk add wgcf@testing wireguard-tools-wg), as your user:
+    wgcf register --accept-tos && wgcf generate
+    doas install -Dm600 wgcf-profile.conf /etc/wireguard/wgcf-profile.conf
+The tunnel's addresses come from that profile; a stripped
+/etc/wireguard/wgcf.conf also works, with WG_ADDR (172.16.0.2/32).
+Not a kill switch: if the tunnel drops, traffic goes out directly.
+EOT
+}
+
+IFACE=wgcf
+PROFILE=/etc/wireguard/wgcf-profile.conf
+# Or a config already stripped for wg, with the address given apart.
+CONF=/etc/wireguard/wgcf.conf WG_ADDR=${WG_ADDR:-172.16.0.2/32}
+MTU=1280
+die() { printf 'warp: %s\n' "$*" >&2; exit 1; }
+
+# The peer's address, from the running interface.
+endpoint() {
+    wg show "$IFACE" endpoints 2>/dev/null |
+        awk '{ print $2 }' | sed -E 's/^\[?([^]]+)\]?:[0-9]+$/\1/'
+}
+
+on() {
+    if ip link show "$IFACE" > /dev/null 2>&1; then
+        echo "WARP is up already."; wg show "$IFACE"; return
+    fi
+    if [ ! -f "$PROFILE" ]; then
+        [ -f "$CONF" ] || die "$PROFILE is missing (see warp --help)"
+        PROFILE=$CONF
+    fi
+    modprobe wireguard 2>/dev/null || :
+    [ -d /sys/module/wireguard ] || die "the wireguard module did not load"
+
+    # wg reads only the [Interface] keys it knows and the peers.
+    conf=$(mktemp)
+    trap 'rm -f "$conf"' EXIT
+    grep -v -E '^(Address|DNS|MTU) *=' "$PROFILE" > "$conf"
+    ip link add "$IFACE" type wireguard
+    if ! wg setconf "$IFACE" "$conf"; then
+        ip link del "$IFACE"; die "wg setconf failed"
+    fi
+    rm -f "$conf"
+
+    v6='' addrs=$(sed -n 's/^Address *= *//p' "$PROFILE" | tr ',' ' ')
+    for a in ${addrs:-$WG_ADDR}; do
+        case $a in *:*) v6=1; ip -6 address add "$a" dev "$IFACE" ;;
+                   *)   ip -4 address add "$a" dev "$IFACE" ;; esac
+    done
+    ip link set dev "$IFACE" mtu "$MTU" up
+
+    ep=$(endpoint)
+    if [ -z "$ep" ] || [ "$ep" = "(none)" ]; then
+        ip link del "$IFACE"; die "the profile has no peer endpoint"
+    fi
+    case $ep in *:*) fam=-6 bits=128 ;; *) fam=-4 bits=32 ;; esac
+    route=$(ip "$fam" route show default | head -n1)
+    dev=$(echo "$route" | awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+    gw=$(echo "$route" | awk '{ for (i = 1; i < NF; i++) if ($i == "via") { print $(i + 1); exit } }')
+    if [ -z "$dev" ]; then
+        ip link del "$IFACE"; die "no default route; is the network up?"
+    fi
+    # The tunnel itself goes the usual way; two half routes beat the
+    # default route without touching it, so DHCP renewals leave them be.
+    ip "$fam" route replace "$ep/$bits" ${gw:+via "$gw"} dev "$dev"
+    ip -4 route add 0.0.0.0/1 dev "$IFACE"
+    ip -4 route add 128.0.0.0/1 dev "$IFACE"
+    if [ -n "$v6" ]; then
+        ip -6 route add ::/1 dev "$IFACE"
+        ip -6 route add 8000::/1 dev "$IFACE"
+    fi
+
+    # Cloudflare's DNS, locked so a DHCP renewal cannot replace it.
+    [ -f /etc/resolv.conf.pre-warp ] || cp /etc/resolv.conf /etc/resolv.conf.pre-warp
+    chattr -i /etc/resolv.conf 2>/dev/null || :
+    printf 'nameserver 1.1.1.1\nnameserver 1.0.0.1\n' > /etc/resolv.conf
+    if [ -n "$v6" ]; then echo 'nameserver 2606:4700:4700::1111' >> /etc/resolv.conf; fi
+    chattr +i /etc/resolv.conf 2>/dev/null ||
+        echo "warp: note: /etc/resolv.conf is not locked; a DHCP renewal will replace it" >&2
+
+    echo "WARP is up via $dev (peer $ep)."
+}
+
+off() {
+    if ! ip link show "$IFACE" > /dev/null 2>&1; then
+        echo "WARP is not up."; return
+    fi
+    ep=$(endpoint)
+    # Deleting the interface takes its routes; the peer's route is on the card.
+    ip link del "$IFACE"
+    case $ep in
+        ''|'(none)') ;;
+        *:*) ip -6 route del "$ep/128" 2>/dev/null || : ;;
+        *)   ip -4 route del "$ep/32" 2>/dev/null || : ;;
+    esac
+    chattr -i /etc/resolv.conf 2>/dev/null || :
+    if [ -f /etc/resolv.conf.pre-warp ]; then mv /etc/resolv.conf.pre-warp /etc/resolv.conf; fi
+    # udhcpc's copies that could not replace the locked file.
+    rm -f /etc/resolv.conf.[0-9]*
+    echo "WARP is down."
+}
+
+case ${1:-} in
+    on|off) [ "$(id -u)" = 0 ] || exec doas env WG_ADDR="$WG_ADDR" "$0" "$@"; "$1" ;;
+    status) ip link show "$IFACE" > /dev/null 2>&1 || { echo "WARP is not up."; exit 0; }
+            [ "$(id -u)" = 0 ] || exec doas "$0" "$@"
+            wg show "$IFACE" ;;
+    *)      usage ;;
+esac

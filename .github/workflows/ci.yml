@@ -54,8 +54,12 @@ jobs:
       - name: Prebuilt kernel
         id: kernel
         run: |
-          key=kernel-$({ find Dockerfile tools/lib.sh pkgs/linux-busylinux -type f | LC_ALL=C sort |
-                         xargs sha256sum; echo VM_SUPPORT=1; } | sha256sum | cut -c1-16)
+          # Only what changes the kernel: the base image and its tools, lib.sh
+          # and the recipe, by content, so moving files or COPY lines does not.
+          key=kernel-$({ grep -E '^(FROM|RUN) ' Dockerfile; cat tools/lib.sh
+                         find pkgs/linux-busylinux -type f | LC_ALL=C sort |
+                           while read -r f; do echo "${f##*/}"; cat "$f"; done
+                         echo VM_SUPPORT=1; } | sha256sum | cut -c1-16)
           echo "key=$key" >> "$GITHUB_OUTPUT"
           mkdir -p prebuilt
           if gh release download kernel-cache -p "$key.apk" -O prebuilt/linux-busylinux.apk 2>/dev/null; then

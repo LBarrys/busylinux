@@ -1,0 +1,95 @@
+From 90db6f9569361ef2fc8efae915e0712cb5156cd7 Mon Sep 17 00:00:00 2001
+From: LBarrys <lbarrys@local>
+Date: Fri, 9 Oct 2026 13:11:31 +0000
+Subject: [PATCH] droptiled: a tiled window moved with Super+drag goes back
+ into the tiling where it is dropped
+
+---
+ dwl.c | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/dwl.c b/dwl.c
+index c74e2fb..42252d3 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -344,6 +344,7 @@ static void destroykeyboardgroup(struct wl_listener *listener, void *data);
+ static Monitor *dirtomon(enum wlr_direction dir);
+ static void drawbar(Monitor *m);
+ static void drawbars(void);
++static void droptiled(Client *c);
+ static void printstatus(void);
+ static void focusclient(Client *c, int lift);
+ static void focusmon(const Arg *arg);
+@@ -475,6 +476,7 @@ static KeyboardGroup *kb_group;
+ static unsigned int cursor_mode;
+ static Client *grabc;
+ static int grabcx, grabcy; /* client-relative */
++static int grabc_tiled; /* grabc was tiled before a Super+drag move */
+ 
+ static struct wlr_output_layout *output_layout;
+ static struct wlr_box sgeom;
+@@ -915,6 +917,9 @@ buttonpress(struct wl_listener *listener, void *data)
+ 			/* Drop the window off on its new monitor */
+ 			selmon = xytomon(cursor->x, cursor->y);
+ 			setmon(grabc, selmon, 0);
++			if (grabc_tiled)
++				droptiled(grabc);
++			grabc_tiled = 0;
+ 			grabc = NULL;
+ 			return;
+ 		}
+@@ -1789,6 +1794,40 @@ traymenu(const Arg *arg)
+ 	tray_rightclicked(selmon->tray, arg->ui, dmenucmd);
+ }
+ 
++/* Put a window that was dragged out of the tiling back into it, swapped
++ * with the tiled window it was dropped on (or in its old place). */
++void
++droptiled(Client *c)
++{
++	Client *t, *target = NULL;
++	struct wl_list *before;
++
++	wl_list_for_each(t, &clients, link) {
++		if (t == c || t->isfloating || !VISIBLEON(t, c->mon))
++			continue;
++		if (cursor->x >= t->geom.x && cursor->x < t->geom.x + t->geom.width
++				&& cursor->y >= t->geom.y && cursor->y < t->geom.y + t->geom.height) {
++			target = t;
++			break;
++		}
++	}
++	if (target) {
++		if (c->link.prev == &target->link) {
++			/* target is right before c: move it right after c */
++			wl_list_remove(&target->link);
++			wl_list_insert(&c->link, &target->link);
++		} else {
++			before = c->link.prev;
++			wl_list_remove(&c->link);
++			wl_list_insert(&target->link, &c->link);
++			wl_list_remove(&target->link);
++			wl_list_insert(before, &target->link);
++		}
++	}
++	setfloating(c, 0); /* arranges c->mon */
++	focusclient(c, 1);
++}
++
+ void
+ drawbars(void)
+ {
+@@ -2453,6 +2492,10 @@ moveresize(const Arg *arg)
+ 	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen)
+ 		return;
+ 
++	/* A tiled window that is moved goes back to the tiling when dropped */
++	grabc_tiled = arg->ui == CurMove && !grabc->isfloating
++		&& grabc->mon && grabc->mon->lt[grabc->mon->sellt]->arrange;
++
+ 	/* Float the window and tell motionnotify to grab it */
+ 	setfloating(grabc, 1);
+ 	switch (cursor_mode = arg->ui) {
+-- 
+2.43.0
+

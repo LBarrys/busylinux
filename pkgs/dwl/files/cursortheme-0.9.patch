@@ -1,0 +1,45 @@
+From be8bd7ff979198abac1770a8c1ff17d68fb7596e Mon Sep 17 00:00:00 2001
+From: LBarrys <lbarrys@local>
+Date: Fri, 9 Oct 2026 09:40:58 +0000
+Subject: [PATCH] cursortheme (dwl-patches, ported to 0.9)
+
+---
+ config.def.h | 2 ++
+ dwl.c        | 8 ++++++--
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/config.def.h b/config.def.h
+index 3bf3115..f44ff8c 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -17,6 +17,8 @@ static const char *fonts[]                 = {"monospace:size=10"};
+ static const float rootcolor[]             = COLOR(0x000000ff);
+ /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
+ static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
++static const char *cursor_theme            = NULL;
++static const char cursor_size[]            = "24"; /* Make sure it's a valid integer, otherwise things will break */
+ static uint32_t colors[][3]                = {
+ 	/*               fg          bg          border    */
+ 	[SchemeNorm] = { 0xbbbbbbff, 0x222222ff, 0x444444ff },
+diff --git a/dwl.c b/dwl.c
+index 8d86481..f16d8c3 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -3082,8 +3082,12 @@ setup(void)
+ 	 * Xcursor themes to source cursor images from and makes sure that cursor
+ 	 * images are available at all scale factors on the screen (necessary for
+ 	 * HiDPI support). Scaled cursors will be loaded with each output. */
+-	cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+-	setenv("XCURSOR_SIZE", "24", 1);
++	cursor_mgr = wlr_xcursor_manager_create(cursor_theme, atoi(cursor_size));
++	setenv("XCURSOR_SIZE", cursor_size, 1);
++	if (cursor_theme)
++		setenv("XCURSOR_THEME", cursor_theme, 1);
++	else
++		unsetenv("XCURSOR_THEME");
+ 
+ 	/*
+ 	 * wlr_cursor *only* displays an image on screen. It does not move around
+-- 
+2.43.0
+

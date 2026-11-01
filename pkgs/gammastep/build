@@ -1,0 +1,10 @@
+#!/bin/sh -e
+# Wayland only. No GeoClue (set the location in gammastep's config.ini), no
+# Python tray, and no NLS, so it does not link GNU libintl.
+./bootstrap
+./configure --prefix=/usr --sysconfdir=/etc --disable-nls \
+    --enable-wayland --disable-drm --disable-randr --disable-vidmode \
+    --disable-geoclue2 --disable-gui --disable-apparmor --without-systemduserunitdir
+make
+make DESTDIR="$1" install
+rm -rf "$1/usr/share/doc"

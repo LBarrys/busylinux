@@ -1,0 +1,6 @@
+version=2.0.11
+release=100
+desc="Screen colour temperature by time of day, for Wayland (no GeoClue, GUI or NLS)"
+url=https://gitlab.com/chinstrap/gammastep
+license=GPL-3.0-only
+makedepends="build-base pkgconf autoconf automake libtool intltool gettext-dev wayland-dev"

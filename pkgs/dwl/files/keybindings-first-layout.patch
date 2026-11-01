@@ -1,0 +1,19 @@
+Match key bindings against the first keyboard layout.
+
+dwl looks up the keysym for a binding in whichever layout is active, so with
+"us,ara" and Arabic active, Super+T produces an Arabic letter and no binding
+matches. Always use layout 0 (us) for bindings; typing is unaffected.
+
+--- a/dwl.c
++++ b/dwl.c
+@@ -1744,7 +1744,9 @@
+ 	/* Translate libinput keycode -> xkbcommon */
+ 	uint32_t keycode = event->keycode + 8;
+ 	struct wlr_keyboard *kb = &group->wlr_group->keyboard;
+-	xkb_layout_index_t layout = xkb_state_key_get_layout(kb->xkb_state, keycode);
++	/* Match bindings against the first layout, so they keep working while
++	 * another layout (e.g. Arabic) is active. */
++	xkb_layout_index_t layout = 0;
+ 	int handled = 0;
+ 
+ 	// Get the keysyms for level 0 (normal) and level 1 (shifted)

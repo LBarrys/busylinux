@@ -8,7 +8,7 @@ usage() {
 
 Installs wgcf and wg, registers a free WARP account and writes its WireGuard
 profile to /etc/wireguard (mode 600), then installs tools/warp as
-/usr/local/sbin/warp. Run again to make the profile anew from the same account,
+/usr/sbin/warp. Run again to make the profile anew from the same account,
 for example with a license key. Through doas when not root.
 Afterwards: doas warp on.
 EOT
@@ -37,5 +37,5 @@ fi
 wgcf generate
 chmod 600 wgcf-account.toml wgcf-profile.conf
 
-install -Dm755 "$TOOLS/warp" /usr/local/sbin/warp
+install -Dm755 "$TOOLS/warp" /usr/sbin/warp
 echo "Done: doas warp on, then doas warp off."

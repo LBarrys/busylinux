@@ -2,7 +2,7 @@
 
 A small musl system for one machine: **Alpine Linux edge** with BusyBox init and
 runit instead of OpenRC, and a `tinyconfig` kernel. Everything but the kernel,
-init, two patched libraries, nftables and wgcf comes straight from Alpine.
+init, libudev-zero, nftables and wgcf (`pkgs/`) comes straight from Alpine.
 
 ```
 CPU     AMD Ryzen 7 7800X3D                      GPU    Radeon RX 7900 GRE -> amdgpu

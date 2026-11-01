@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs at the end of boot, before the logins; keep it quick.
+# For example, a cooler CPU:
+# for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+#     echo balance_power > "$f"
+# done

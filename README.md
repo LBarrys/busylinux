@@ -71,8 +71,8 @@ Limine starts the kernel and the AMD microcode, with no initramfs; the kernel
 mounts the partition named `busylinux-root` read-only. The "Rescue shell" entry
 starts `/bin/sh` instead of init (`mount -o remount,rw /` to change files).
 `rcS` mounts the file systems, checks the root, loads the keymap, sets up zram
-swap (half the RAM, zstd), loads sysctls and `/etc/modules-load.d`, starts the device manager and the firewall, and TRIMs
-ext4 a minute later. `rcK` gives services 20 seconds to stop. runit supervises
+swap (half the RAM, zstd), loads sysctls and `/etc/modules-load.d`, starts the device manager and the firewall, TRIMs
+ext4 a minute later and last runs `/etc/rc.local`, yours to fill. `rcK` gives services 20 seconds to stop. runit supervises
 `syslogd`, `klogd`, `crond`, `ntpd`, `acpid` (the power button powers off),
 `dhcp` (the first network card) and, once installed, `seatd` and `dbus`.
 
@@ -120,7 +120,9 @@ and log in again. Membership amounts to root: a container can mount `/`.
 
 ## Steam and Windows games
 
-Steam and Proton need glibc and 32-bit libraries, which Alpine (musl) lacks.
+`/etc/sysctl.d/20-games.conf` and the logins' file limit (`/etc/inittab`) are
+set for Proton already. Steam and Proton need glibc and 32-bit libraries,
+which Alpine (musl) lacks.
 They run from an Arch Linux tree in `/opt/root.x86_64`, entered with
 `bubblewrap` (no container engine). Set it up once, as your user:
 

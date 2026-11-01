@@ -8,10 +8,8 @@ usage() {
     warp off       take it down and restore /etc/resolv.conf
     warp status    show the interface
 
-Set up once (apk add wgcf@testing wireguard-tools-wg), as your user:
-    wgcf register --accept-tos && wgcf generate
-    doas install -Dm600 wgcf-profile.conf /etc/wireguard/wgcf-profile.conf
-The tunnel's addresses come from that profile; a stripped
+tools/warp-setup makes /etc/wireguard/wgcf-profile.conf and installs this as
+/usr/local/sbin/warp. The tunnel's addresses come from that profile; a stripped
 /etc/wireguard/wgcf.conf also works, with WG_ADDR (172.16.0.2/32).
 Not a kill switch: if the tunnel drops, traffic goes out directly.
 EOT
@@ -35,7 +33,7 @@ on() {
         echo "WARP is up already."; wg show "$IFACE"; return
     fi
     if [ ! -f "$PROFILE" ]; then
-        [ -f "$CONF" ] || die "$PROFILE is missing (see warp --help)"
+        [ -f "$CONF" ] || die "$PROFILE is missing; run tools/warp-setup"
         PROFILE=$CONF
     fi
     modprobe wireguard 2>/dev/null || :

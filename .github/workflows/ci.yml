@@ -34,6 +34,10 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
 
@@ -45,14 +49,42 @@ jobs:
           # build.sh rebuilds only the recipes that changed.
           restore-keys: build-
 
+      # A kernel compiled by any earlier run from the same inputs, from the
+      # kernel-cache release: the Actions cache does not cross branches.
+      - name: Prebuilt kernel
+        id: kernel
+        run: |
+          key=kernel-$({ find Dockerfile lib.sh pkgs/linux-busylinux -type f | LC_ALL=C sort |
+                         xargs sha256sum; echo VM_SUPPORT=1; } | sha256sum | cut -c1-16)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          mkdir -p prebuilt
+          if gh release download kernel-cache -p "$key.apk" -O prebuilt/linux-busylinux.apk 2>/dev/null; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build
         run: |
           docker build -t busylinux-builder .
           mkdir -p out cache
           docker run --rm -v "$PWD/out:/build/out" -v "$PWD/cache:/build/cache" \
+            -v "$PWD/prebuilt:/build/prebuilt:ro" \
             -e ALPINE_MIRROR=https://dl-cdn.alpinelinux.org/alpine -e VM_SUPPORT=1 \
             busylinux-builder
           sudo chown -R "$(id -u):$(id -g)" out cache
+
+      - name: Save the kernel for later runs
+        if: steps.kernel.outputs.hit != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        run: |
+          key=${{ steps.kernel.outputs.key }}
+          cp cache/packages/x86_64/linux-busylinux-*.apk "prebuilt/$key.apk"
+          gh release view kernel-cache > /dev/null 2>&1 ||
+            gh release create kernel-cache --prerelease --title "Kernel build cache" \
+              --notes "Kernels compiled by CI, reused by later runs. Not for installing."
+          gh release upload kernel-cache "prebuilt/$key.apk" --clobber
+          # Keep the five newest.
+          gh release view kernel-cache --json assets \
+            --jq '.assets | sort_by(.createdAt) | reverse | .[5:] | .[].name' |
+            xargs -r -n1 gh release delete-asset kernel-cache -y
 
       - name: Boot test
         run: |

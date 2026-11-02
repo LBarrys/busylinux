@@ -19,7 +19,7 @@ jobs:
         run: |
           f=pkgs/busylinux-init/files
           shellcheck -S warning -s sh tools/* tests/*.sh .github/*.sh pkgs/*/build \
-            "$f"/rc? "$f"/rc.local "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
+            "$f"/rc? "$f"/rc.local "$f"/updates-check "$f"/sv* "$f"/supervise "$f"/acpi-poweroff \
             "$f"/busylinux.sh
 
       - name: nftables ruleset

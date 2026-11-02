@@ -26,6 +26,7 @@ option is lost or an excluded one comes back.
 | `tools/build.sh` | builds every recipe and `out/rootfs.tar.gz`, in the container |
 | `tools/install.sh` | installs `rootfs.tar.gz` onto a disk |
 | `tools/update.sh` | rebuilds recipes on the installed machine |
+| `tools/doctor` | checks the installed machine: kernel, packages, services, `.apk-new` files |
 | `tests/boot-test.sh` | installs to a disk image and boots it in QEMU (CI) |
 
 ## Build and install
@@ -61,7 +62,11 @@ tools/update.sh --all             # everything
 ```
 
 They build in a separate Alpine root, `/var/tmp/busylinux-update/root`, so build
-tools never land on the system or clash with its packages.
+tools never land on the system or clash with its packages. When you have
+edited a file in `/etc`, apk keeps it and puts its new version beside it as
+`.apk-new`; `update.sh` and `tools/doctor` list those to merge. Once a week
+cron counts the Alpine updates waiting, shown at login; nothing upgrades by
+itself.
 
 A weekly workflow opens a pull request when a new kernel of the series is out,
 after checking its signature. CI keeps each kernel it compiles in the `kernel-cache`

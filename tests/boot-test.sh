@@ -57,7 +57,7 @@ sed -i 's/^timeout: 3$/timeout: 1\ndefault_entry: 2/' "$work/mnt/boot/EFI/BOOT/l
 echo 'ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100' >> "$work/mnt/etc/inittab"
 echo 'echo ran > /run/rc-local-ran' >> "$work/mnt/etc/rc.local"
 mkdir -p "$work/mnt/root/busylinux/pkgs" "$work/mnt/root/busylinux/tools" "$work/mnt/root/keys" "$work/mnt/etc/service/slowstop"
-cp "$top/tools/update.sh" "$top/tools/lib.sh" "$work/mnt/root/busylinux/tools/"
+cp "$top/tools/update.sh" "$top/tools/lib.sh" "$top/tools/doctor" "$work/mnt/root/busylinux/tools/"
 cp -R "$top/pkgs/busylinux-init" "$top/pkgs/libudev-zero" "$work/mnt/root/busylinux/pkgs/"
 openssl genrsa -out "$work/mnt/root/keys/local.rsa" 2048 2>/dev/null
 openssl rsa -in "$work/mnt/root/keys/local.rsa" -pubout \
@@ -148,6 +148,16 @@ limit=90
 send 'ok=0; apk add -q dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux >/tmp/desktop.log 2>&1 && ok=1; for b in dwl gammastep pipemixer cclip cclipd; do if ldd /usr/bin/$b 2>&1 | grep -qi error; then echo "$b: libraries missing"; ok=0; fi; done; [ "$ok" = 1 ] && printf "CHECK-%s\\n" desktop || tail -n 5 /tmp/desktop.log'
 wait_for 'CHECK-desktop$' 600 || fail "desktop packages load"
 pass "desktop packages load"
+
+# dwl itself, with its patches and config.h: wlroots' headless backend, a session
+# bus for the systray, and a font for the bar; it must stay up and serve Wayland.
+limit=300
+check dwl         'apk add -q dbus font-dejavu >/dev/null 2>&1 && mkdir -p -m 700 /tmp/xdg && (XDG_RUNTIME_DIR=/tmp/xdg WLR_BACKENDS=headless WLR_RENDERER=pixman dbus-run-session -- dwl >/tmp/dwl.log 2>&1 &) && sleep 10 && pidof dwl >/dev/null && ls /tmp/xdg/wayland-* >/dev/null && kill $(pidof dwl) || { tail -n 20 /tmp/dwl.log; false; }'
+check updates     '/usr/libexec/busylinux/updates-check && [ -f /var/lib/busylinux/updates ] && grep -q updates-check /etc/crontabs/root'
+limit=90
+# The test edited /etc/inittab, so updating busylinux-init left inittab.apk-new.
+check apk-new     'grep -q "/etc/inittab.apk-new" /tmp/update.log'
+check doctor      '/root/busylinux/tools/doctor >/tmp/doctor.log 2>&1; grep -q "^WARN  /etc/inittab.apk-new" /tmp/doctor.log && [ "$(grep -c "^WARN" /tmp/doctor.log)" = "$(grep -c "^WARN.*apk-new" /tmp/doctor.log)" ] || { cat /tmp/doctor.log; false; }'
 
 echo system_powerdown > "$work/mon.in"
 i=0

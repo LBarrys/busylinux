@@ -9,3 +9,4 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
 fi
 # mimalloc (secure mode) instead of musl's malloc; musl has no ld.so.preload.
 if [ -e /usr/lib/libmimalloc.so.3 ]; then export LD_PRELOAD=/usr/lib/libmimalloc.so.3; fi
+if [ -s /var/lib/busylinux/updates ]; then cat /var/lib/busylinux/updates; fi

@@ -103,3 +103,10 @@ index
 log "Installing"
 # shellcheck disable=SC2086
 [ -z "$pins" ] || apk add -u $pins
+
+# apk keeps your edited /etc files and puts its new versions beside them.
+new=$(find /etc -name '*.apk-new' 2>/dev/null)
+if [ -n "$new" ]; then
+    log "New versions wait beside files you changed; merge or delete them:"
+    for f in $new; do info "$f"; done
+fi

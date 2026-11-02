@@ -1,0 +1,13 @@
+#!/bin/sh
+# Hourly from cron; once a week it counts the Alpine updates for the login
+# notice (/etc/profile.d/busylinux.sh). It never upgrades anything.
+f=/var/lib/busylinux/updates
+[ -z "$(find "$f" -mtime -7 2>/dev/null)" ] || exit 0
+apk update -q > /dev/null 2>&1 || exit 0
+n=$(apk version -l '<' 2>/dev/null | grep -c ' < ')
+mkdir -p "${f%/*}"
+if [ "$n" -gt 0 ]; then
+    echo "$n package updates are waiting: doas apk upgrade" > "$f"
+else
+    : > "$f"
+fi

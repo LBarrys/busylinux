@@ -1,0 +1,74 @@
+#!/bin/sh
+# Checks the usual suspects and prints one line each; exits 1 if any needs you.
+set -u
+
+case ${1:-} in
+    -h|--help) echo "doctor: checks this system's state; read only. Through doas when not root."
+               exit 0 ;;
+esac
+TOOLS=$(cd "$(dirname "$0")" && pwd -P)
+[ "$(id -u)" = 0 ] || exec doas "$TOOLS/doctor" "$@"
+PKGS=${TOOLS%/*}/pkgs
+# shellcheck source=tools/lib.sh
+. "$TOOLS/lib.sh"
+
+bad=0
+ok()   { printf 'ok    %s\n' "$*"; }
+warn() { printf 'WARN  %s\n' "$*"; bad=1; }
+note() { printf 'note  %s\n' "$*"; }
+ver()  { apk list --installed "$1" 2>/dev/null | sed -n "s/^$1-\([0-9][^ ]*\) .*/\1/p"; }
+
+# Kernel: the one running against the one installed.
+k=$(ver linux-busylinux)
+case $(uname -r) in
+    "${k%-r*}"-*) ok "kernel $(uname -r) is the installed one" ;;
+    *)            warn "kernel $(uname -r) runs, linux-busylinux $k is installed: reboot" ;;
+esac
+
+# Recipes behind this checkout, and recipes not pinned to this repository.
+for r in $(recipes); do
+    v=$(ver "$r")
+    [ -n "$v" ] || continue
+    want=$(field "$r" version) rel=$(field "$r" release)
+    if [ "${v%-r*}" != "$want" ] || [ "${v##*-r}" -lt "$rel" ]; then
+        warn "$r $v is older than pkgs/$r ($want-r$rel): tools/update.sh $r"
+    fi
+    if grep -qx "$r" /etc/apk/world; then
+        warn "$r is in /etc/apk/world without @busylinux: apk add $r@busylinux"
+    fi
+done
+ok "packages from pkgs/ checked"
+
+# Leftovers of interrupted builds or setups.
+for v in .busylinux-build .warp-setup; do
+    if grep -q "^$v" /etc/apk/world; then warn "$v is left in /etc/apk/world: apk del $v"; fi
+done
+
+# New versions apk put beside files you changed.
+new=$(find /etc -name '*.apk-new' 2>/dev/null)
+for f in $new; do warn "$f: a new version beside your edited ${f%.apk-new}; merge or delete it"; done
+[ -n "$new" ] || ok "no .apk-new files in /etc"
+
+# Services.
+for s in /etc/service/*; do
+    st=$(sv status "$s" 2>/dev/null)
+    case $st in run:*) ;; *) warn "service ${s##*/}: ${st:-no status}" ;; esac
+done
+ok "services checked"
+if pidof mdevd > /dev/null; then ok "mdevd runs"; else warn "mdevd does not run"; fi
+
+# Memory, firewall, disk.
+if grep -q libmimalloc "/proc/$(pidof syslogd | cut -d' ' -f1)/maps" 2>/dev/null; then
+    ok "services use mimalloc"
+else
+    warn "services do not use mimalloc (apk add mimalloc3, then reboot)"
+fi
+if grep -q '^/dev/zram0 ' /proc/swaps; then ok "zram swap on"; else warn "no zram swap"; fi
+if [ -n "$(nft list tables 2>/dev/null)" ]; then ok "firewall loaded"; else warn "no firewall ruleset: nft -f /etc/nftables.conf"; fi
+use=$(df -P / | awk 'NR == 2 { sub("%", "", $5); print $5 }')
+if [ "$use" -lt 90 ]; then ok "/ is $use% full"; else warn "/ is $use% full"; fi
+
+# Updates the weekly check found.
+if [ -s /var/lib/busylinux/updates ]; then note "$(cat /var/lib/busylinux/updates)"; fi
+
+exit "$bad"

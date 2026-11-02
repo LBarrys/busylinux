@@ -1,4 +1,4 @@
 #!/bin/sh
 exec 2>&1
-command -v seatd > /dev/null 2>&1 || exec sleep 3600
+command -v seatd > /dev/null 2>&1 || exec sleep 60
 exec seatd -g seat

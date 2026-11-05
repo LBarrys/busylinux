@@ -35,11 +35,14 @@ run() {
     mnt='' media=''
     [ ! -d "$R/mnt" ] || mnt=/mnt
     [ ! -d "$R/media" ] || media=/media
+    # Arch's newer fontconfig gets its own cache; Alpine's refuses newer caches.
+    fc=${XDG_CACHE_HOME:-$HOME/.cache}/fontconfig
+    mkdir -p "$fc-arch" "$fc"
     # shellcheck disable=SC2086
     exec bwrap --ro-bind "$R" / \
         --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \
         --tmpfs /home --tmpfs /run \
-        --bind "$HOME" "$HOME" --bind-try "$u" "$u" \
+        --bind "$HOME" "$HOME" --bind "$fc-arch" "$fc" --bind-try "$u" "$u" \
         ${mnt:+--bind-try $mnt $mnt} ${media:+--bind-try $media $media} --unsetenv LD_PRELOAD \
         --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group \
         --ro-bind /etc/resolv.conf /etc/resolv.conf \

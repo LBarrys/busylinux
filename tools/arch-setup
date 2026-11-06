@@ -41,6 +41,7 @@ tree() {
     sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' "$R/etc/locale.gen"
     touch "$R/etc/machine-id"
     mkdir -p "$R/mnt" "$R/media"
+    [ -e "$R/etc/localtime" ] || [ -L "$R/etc/localtime" ] || : > "$R/etc/localtime"
     [ $# -gt 0 ] || set -- steam umu-launcher mangohud lib32-mangohud \
         vulkan-radeon lib32-vulkan-radeon lib32-mesa
     # --cap-add ALL lets pacman switch to its download user (Landlock-confined).

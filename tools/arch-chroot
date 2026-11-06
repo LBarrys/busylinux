@@ -45,6 +45,9 @@ run() {
     [ ! -e /etc/localtime ] || [ ! -e "$R/etc/localtime" ] || lt=/etc/localtime
     # The locale arch-setup generates, unless you chose one.
     [ -n "${LANG:-}" ] || export LANG=en_US.UTF-8
+    # Mesa keeps 1 GB of compiled shaders by default; Proton games need 1-3 GB
+    # each, and an evicted shader means a stutter when it is compiled again.
+    [ -n "${MESA_SHADER_CACHE_MAX_SIZE:-}" ] || export MESA_SHADER_CACHE_MAX_SIZE=10G
     # shellcheck disable=SC2086
     exec bwrap --ro-bind "$R" / \
         --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \

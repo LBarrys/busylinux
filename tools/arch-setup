@@ -8,8 +8,8 @@ usage() {
 
 Downloads Arch's bootstrap tree into /opt/root.x86_64 (ARCH_ROOT to change it),
 checks its checksum, enables multilib and installs Steam, umu-launcher,
-MangoHud and the Radeon Vulkan drivers, or PACKAGE... instead. Then installs
-arch-chroot into ~/.local/bin and a Steam entry for launchers.
+MangoHud, the Radeon Vulkan drivers and CJK fonts, or PACKAGE... instead.
+Then installs arch-chroot into ~/.local/bin and a Steam entry for launchers.
 Root steps go through doas. Afterwards: arch-chroot steam.
 EOT
 }
@@ -38,12 +38,26 @@ tree() {
 
     sed -i 's|^#Server = https://geo|Server = https://geo|' "$R/etc/pacman.d/mirrorlist"
     sed -i '/^#\[multilib\]/,/^#Include/ s/^#//; s/^CheckSpace/#CheckSpace/' "$R/etc/pacman.conf"
+    # No docs, man pages or translations (the list Arch's Docker image uses),
+    # and no timeout for slow mirrors.
+    sed -i '/^\[options\]/a\
+DisableDownloadTimeout\
+NoExtract = usr/share/help/* !usr/share/help/en* !usr/share/help/C/*\
+NoExtract = usr/share/gtk-doc/html/* usr/share/doc/*\
+NoExtract = usr/share/locale/* usr/share/X11/locale/*\
+NoExtract = !*locale*/en*/* !usr/share/*locale*/locale.*\
+NoExtract = !usr/share/X11/locale/C/*\
+NoExtract = !usr/share/X11/locale/compose.dir !usr/share/X11/locale/iso8859-1/*\
+NoExtract = usr/share/man/* usr/share/info/*\
+NoExtract = usr/share/vim/vim*/lang/*' "$R/etc/pacman.conf"
     sed -i 's/^#en_US.UTF-8/en_US.UTF-8/' "$R/etc/locale.gen"
     touch "$R/etc/machine-id"
     mkdir -p "$R/mnt" "$R/media"
     [ -e "$R/etc/localtime" ] || [ -L "$R/etc/localtime" ] || : > "$R/etc/localtime"
     [ $# -gt 0 ] || set -- steam umu-launcher mangohud lib32-mangohud \
-        vulkan-radeon lib32-vulkan-radeon lib32-mesa
+        vulkan-radeon lib32-vulkan-radeon lib32-mesa \
+        adobe-source-han-sans-jp-fonts adobe-source-han-sans-kr-fonts \
+        adobe-source-han-sans-cn-fonts
     # --cap-add ALL lets pacman switch to its download user (Landlock-confined).
     bwrap --cap-add ALL --bind "$R" / --dev /dev --proc /proc \
         --ro-bind /etc/resolv.conf /etc/resolv.conf -- /bin/sh -c '

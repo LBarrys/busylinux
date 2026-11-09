@@ -1,0 +1,7 @@
+version=1
+release=0
+desc="Inter, Fira Code, Vazirmatn, Sarasa Gothic, OpenMoji, Nerd Font symbols and Unifont, with a fontconfig setup"
+url=https://github.com/LBarrys/busylinux
+license="OFL-1.1 AND CC-BY-SA-4.0 AND MIT AND GPL-2.0-or-later WITH Font-exception-2.0"
+depends="fontconfig"
+makedepends="7zip"

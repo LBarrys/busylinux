@@ -10,7 +10,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
-    xdg-desktop-portal xdg-desktop-portal-gtk font-noto
+    xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux
 ```
 
 | | |
@@ -22,7 +22,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
 | `pipewire*`, `wireplumber` | sound, with ALSA and PulseAudio programs too |
 | `dwl` and the other `@busylinux` packages | built from this repository (below) |
 | `xdg-desktop-portal*` | file pickers and screen sharing for Firefox and Flatpak |
-| `font-noto` | fonts for Latin, Greek, Cyrillic, Arabic and more; **not** CJK (see [Fonts](#fonts)) |
+| `busylinux-fonts` | the fonts and their fontconfig setup (see [Fonts](#fonts)) |
 
 The installer already put your user in `video input audio seat`.
 
@@ -152,46 +152,52 @@ The kernel has no ALSA sequencer, so programs that look for MIDI print
 
 ## Fonts
 
-`font-noto` covers most scripts but **not Chinese, Japanese or Korean**.
-Without a CJK font, those show as boxes or as glyphs from whatever font happens
-to cover them. Add one:
+`busylinux-fonts@busylinux` installs a set of fonts into
+`/usr/share/fonts/busylinux` and a fontconfig setup,
+`/etc/fonts/conf.d/29-busylinux-fonts.conf`, that puts them in order:
+
+| Font | For |
+|---|---|
+| **Inter** | sans-serif text (and serif: one family everywhere) |
+| **Fira Code** | monospace, with ligatures |
+| **Vazirmatn** | Arabic and Persian |
+| **OpenMoji Color** | emoji |
+| **Sarasa Gothic** / **Sarasa Mono** | Chinese, Japanese and Korean (five upright weights) |
+| **Symbols Nerd Font** | icons in terminals and bars |
+| **Unifont** | anything none of the others cover |
+
+The setup:
+
+- **Fallback order**: a character Inter lacks comes from Vazirmatn, then
+  OpenMoji, Sarasa, the Nerd symbols and Unifont, in that order. Monospace is
+  the same with Fira Code and Sarasa Mono.
+- **Medium by default**: text that asks for normal weight gets Medium, which
+  reads better on a 1080p screen. Bold, semibold and light stay as asked.
+- **CJK by language**: the same character is drawn differently in Japanese,
+  Simplified and Traditional Chinese and Korean, and the punctuation sits
+  differently. Text marked as Japanese (a page's `lang`, which browsers pass
+  on) gets Sarasa's J variant, Korean K, Taiwanese TC, Hong Kong and Macau HC,
+  and everything else SC.
+- **Rendering**: antialiasing, slight hinting, RGB subpixel order.
+
+Check it:
 
 ```sh
-doas apk add font-noto-cjk
+fc-match sans-serif family style                 # Inter: Medium
+fc-match sans-serif:bold family style            # Inter: Bold
+fc-match -s 'sans-serif:lang=ja' | grep -m1 -i sarasa   # Sarasa Gothic J
 ```
 
-Or use any CJK font family in `~/.local/share/fonts`. A family that comes in
-regional variants (Sarasa Gothic, Source Han Sans, Noto Sans CJK as separate
-files) needs the right variant per language. The same character is drawn
-differently in Japanese, Simplified Chinese, Traditional Chinese and Korean, and
-the punctuation sits differently. Fontconfig can pick the variant from the
-text's language, which browsers pass on from the page's `lang`:
+The file is in `/etc`, so your edits survive updates (a new version lands
+beside it as `.apk-new`). To start over with your own fonts instead,
+`apk del busylinux-fonts` and put them in `~/.local/share/fonts`. Without it,
+`font-noto` covers most scripts but not CJK; `font-noto-cjk` adds that.
 
-```xml
-<!-- after your sans-serif alias, e.g. in /etc/fonts/conf.d/29-user-fonts.conf -->
-<match target="pattern">
-  <test name="lang" compare="contains"><string>ja</string></test>
-  <test name="family"><string>Sarasa Gothic SC</string></test>
-  <edit name="family" mode="assign"><string>Sarasa Gothic J</string></edit>
-</match>
-```
-
-Repeat it for `ko` (K), `zh-tw` (TC) and `zh-hk` (HC). Check with
-`fc-match -s 'sans-serif:lang=ja' | grep -m1 -i sarasa`.
-
-A default weight of Medium instead of Regular, keeping real bold:
-
-```xml
-<match target="pattern">
-  <test name="weight" compare="eq"><const>regular</const></test>
-  <edit name="weight" mode="assign"><const>medium</const></edit>
-</match>
-<match target="pattern">
-  <!-- no weight asked: "all" holds for an empty list -->
-  <test name="weight" qual="all" compare="eq"><int>-1</int></test>
-  <edit name="weight" mode="assign"><const>medium</const></edit>
-</match>
-```
+The recipe pins each font's version and checksum, and keeps only what the
+setup uses. Sarasa's italic files are left out, which saves 430 MB: they
+slant only Sarasa's Latin letters, and Inter and Fira Code supply those. Fira
+Code's variable font is left out too, so its fixed weights win. The package is
+about 440 MB installed, nearly all of it Sarasa's five weights.
 
 Fonts inside the Arch tree are separate; see
 [Steam and games](Steam-and-Games.md#fonts).

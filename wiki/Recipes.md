@@ -140,3 +140,4 @@ See [Updating](Updating.md) for how that works.
 | `gammastep` | Wayland-only, without GeoClue, GUI or translations |
 | `pipemixer`, `cclip` | not in Alpine |
 | `wgcf` | newer than Alpine's |
+| `busylinux-fonts` | fonts Alpine lacks or packages older, with the fontconfig setup that ties them together |

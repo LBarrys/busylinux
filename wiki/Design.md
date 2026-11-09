@@ -8,7 +8,7 @@ Windows games. This page explains the main choices.
 
 Building every package would be a full-time job. Alpine already is small,
 musl-based, security-minded and fast-moving on edge. BusyLinux takes it as it
-is, and builds only what has to differ: nine recipes. Everything else updates
+is, and builds only what has to differ: ten recipes. Everything else updates
 with `apk upgrade`, and Alpine's wiki applies.
 
 **Edge, not a stable branch**, because the desktop and Mesa move quickly and

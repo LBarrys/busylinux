@@ -1,0 +1,36 @@
+#!/bin/sh -e
+# The archives arrive whole; take from each only the fonts the setup uses.
+z=$(command -v 7zz || command -v 7z)
+# x ARCHIVE DIR NAME...: the files named, from anywhere in the archive.
+x() { a=$1 o=x/$2; shift 2; $z x -y -o"$o" "$a" "$@" -r > /dev/null; }
+x Inter-*.zip inter Inter.ttc
+x Fira_Code_*.zip fira-code 'FiraCode-*.ttf'
+# The plain family; the archive also has UI, FD, NL and RD variants.
+x vazirmatn-*.zip vazirmatn Vazirmatn-Thin.ttf Vazirmatn-ExtraLight.ttf Vazirmatn-Light.ttf \
+    Vazirmatn-Regular.ttf Vazirmatn-Medium.ttf Vazirmatn-SemiBold.ttf Vazirmatn-Bold.ttf \
+    Vazirmatn-ExtraBold.ttf Vazirmatn-Black.ttf
+# Upright only: Sarasa's italics slant only its Latin, which Inter and Fira
+# Code cover; each weight is 85 MB.
+x Sarasa-TTC-*.7z sarasa-gothic Sarasa-ExtraLight.ttc Sarasa-Light.ttc Sarasa-Regular.ttc \
+    Sarasa-SemiBold.ttc Sarasa-Bold.ttc
+x openmoji-font.zip openmoji OpenMoji-color-cbdt.ttf
+x NerdFontsSymbolsOnly.zip nerd-symbols 'SymbolsNerdFont*.ttf'
+mkdir -p x/unifont
+mv unifont-*.otf x/unifont/unifont.otf
+mv unifont_upper-*.otf x/unifont/unifont_upper.otf
+
+d=$1/usr/share/fonts/busylinux
+for dir in x/*; do
+    mkdir -p "$d/${dir#x/}"
+    find "$dir" -type f \( -name '*.ttf' -o -name '*.ttc' -o -name '*.otf' \) \
+        -exec cp {} "$d/${dir#x/}/" \;
+done
+# Fira Code's variable font would shadow its fixed weights.
+rm -f "$d/fira-code/FiraCode-VF.ttf"
+chmod 644 "$d"/*/*
+for f in inter/Inter.ttc fira-code/FiraCode-Medium.ttf vazirmatn/Vazirmatn-Medium.ttf \
+         sarasa-gothic/Sarasa-Regular.ttc openmoji/OpenMoji-color-cbdt.ttf \
+         nerd-symbols/SymbolsNerdFont-Regular.ttf unifont/unifont.otf; do
+    [ -s "$d/$f" ] || { echo "missing $f" >&2; exit 1; }
+done
+install -Dm644 fonts.conf "$1/etc/fonts/conf.d/29-busylinux-fonts.conf"

@@ -1,0 +1,10 @@
+# A new version with the same file name (openmoji, nerd-fonts) needs the old
+# download deleted from the source cache first: it is kept by name.
+https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip
+https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip
+https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/vazirmatn-v33.003.zip
+https://github.com/be5invis/Sarasa-Gothic/releases/download/v1.0.43/Sarasa-TTC-1.0.43.7z
+https://github.com/hfg-gmuend/openmoji/releases/download/17.0.0/openmoji-font.zip
+https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/NerdFontsSymbolsOnly.zip
+https://ftp.gnu.org/gnu/unifont/unifont-18.0.01/unifont-18.0.01.otf
+https://ftp.gnu.org/gnu/unifont/unifont-18.0.01/unifont_upper-18.0.01.otf

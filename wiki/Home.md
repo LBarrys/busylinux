@@ -2,7 +2,7 @@
 
 BusyLinux is a small musl system for one machine: Alpine Linux edge, with BusyBox
 init and runit in place of OpenRC, a kernel built from `tinyconfig`, and no
-initramfs. Nine packages are built from this repository (`pkgs/`). Everything
+initramfs. Ten packages are built from this repository (`pkgs/`). Everything
 else is plain Alpine, so `apk` and Alpine's documentation apply as they are.
 
 The [README](../README.md) has the short version: build, install, update. This

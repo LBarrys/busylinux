@@ -1,0 +1,12 @@
+#!/bin/sh
+# The sched_ext scheduler named in /etc/scx.conf; none by default, and then
+# the kernel's own scheduler (EEVDF) runs. Looks again every minute.
+exec 2>&1
+SCHEDULER='' ARGS=''
+# shellcheck source=/dev/null
+[ ! -f /etc/scx.conf ] || . /etc/scx.conf
+[ -n "$SCHEDULER" ] && [ -e /sys/kernel/sched_ext/state ] || exec sleep 60
+command -v "$SCHEDULER" > /dev/null 2>&1 || { echo "no $SCHEDULER"; exec sleep 60; }
+# stdout is a line of statistics a second; errors go to stderr, into syslog.
+# shellcheck disable=SC2086
+exec "$SCHEDULER" $ARGS > /dev/null

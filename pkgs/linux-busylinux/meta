@@ -1,8 +1,9 @@
 version=6.18.62
 release=0
-desc="Linux kernel built from tinyconfig for Ryzen 7000 / Radeon RX 7000 hardware"
+desc="Linux kernel built from tinyconfig for Ryzen 7000 / Radeon RX 7000 hardware, with sched_ext schedulers"
 url=https://www.kernel.org/
 license=GPL-2.0-only
 options="nostrip"
 makedepends="build-base bash bc bison flex perl openssl openssl-dev elfutils-dev
-             linux-headers diffutils findutils grep xz gzip cpio zstd ncurses-dev"
+             linux-headers diffutils findutils grep xz gzip cpio zstd ncurses-dev
+             pahole clang llvm zlib-dev python3"

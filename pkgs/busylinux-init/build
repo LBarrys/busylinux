@@ -8,6 +8,7 @@ install -Dm644 issue         "$1/etc/issue"
 install -Dm644 /dev/null     "$1/etc/motd"
 install -Dm644 sysctl-hardening.conf "$1/etc/sysctl.d/10-hardening.conf"
 install -Dm644 sysctl-games.conf "$1/etc/sysctl.d/20-games.conf"
+install -Dm644 scx.conf      "$1/etc/scx.conf"
 install -Dm640 doas.conf     "$1/etc/doas.d/wheel.conf"
 install -Dm755 supervise     "$1/usr/sbin/busylinux-supervise"
 install -Dm644 nftables.conf "$1/etc/nftables.conf"
@@ -16,11 +17,11 @@ install -Dm600 crontab       "$1/etc/crontabs/root"
 install -Dm755 updates-check "$1/usr/libexec/busylinux/updates-check"
 install -Dm755 acpi-poweroff "$1/etc/acpi/PWRF/00000080"
 
-for s in syslogd klogd crond ntpd seatd dbus dhcp acpid; do
+for s in syslogd klogd crond ntpd seatd dbus dhcp acpid scx; do
     install -Dm755 "sv-$s" "$1/etc/service/$s/run"
 done
 
-for s in ntpd seatd; do
+for s in ntpd seatd scx; do
     install -Dm755 svlog "$1/etc/service/$s/log/run"
 done
 

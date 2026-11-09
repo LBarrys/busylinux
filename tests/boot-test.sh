@@ -131,7 +131,7 @@ check landlock    'dmesg | grep -q "landlock: Up and running"'
 check mglru       '[ "$(cat /sys/kernel/mm/lru_gen/enabled)" != 0x0000 ]'
 # sched_ext: off by default; the scx service runs what /etc/scx.conf names
 # and stops it again; the config is put back as it was, so apk sees no edit.
-check sched-ext   'c=/etc/scx.conf; st=/sys/kernel/sched_ext/state; [ "$(cat $st)" = disabled ] && cp $c /tmp/scx.conf && sed -i "s/^SCHEDULER=.*/SCHEDULER=scx_simple/" $c && sv restart /etc/service/scx >/dev/null && for i in $(seq 30); do [ "$(cat $st)" = enabled ] && break; sleep 1; done; [ "$(cat /sys/kernel/sched_ext/root/ops)" = simple ] && cp /tmp/scx.conf $c && sv restart /etc/service/scx >/dev/null && for i in $(seq 10); do [ "$(cat $st)" = disabled ] && break; sleep 1; done; [ "$(cat $st)" = disabled ]'
+check sched-ext   'c=/etc/scx.conf st=/sys/kernel/sched_ext/state ok=0; [ "$(cat $st)" = disabled ] && cp $c /tmp/scx.conf && sed -i "s/^SCHEDULER=.*/SCHEDULER=scx_simple/" $c && sv restart /etc/service/scx >/dev/null && for i in $(seq 30); do [ "$(cat $st)" = enabled ] && break; sleep 1; done; [ "$(cat /sys/kernel/sched_ext/root/ops 2>/dev/null)" = simple ] && ok=1; grep scx /var/log/messages | tail -n 5; cp /tmp/scx.conf $c; sv restart /etc/service/scx >/dev/null; for i in $(seq 10); do [ "$(cat $st)" = disabled ] && break; sleep 1; done; [ "$ok" = 1 ] && [ "$(cat $st)" = disabled ]'
 check pinned      'grep -q "^v3 @busylinux " /etc/apk/repositories && grep -qx "busylinux-init@busylinux" /etc/apk/world'
 check fail-closed 'nft flush ruleset && sv restart /etc/service/dhcp >/dev/null; sleep 3; grep -q "no firewall ruleset is loaded" /var/log/messages'
 check reload      'nft -f /etc/nftables.conf && sv restart /etc/service/dhcp >/dev/null'

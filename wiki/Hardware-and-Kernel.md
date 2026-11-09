@@ -88,6 +88,12 @@ those from DWARF debug info during the build, so the kernel builds with debug
 info, which takes longer and more memory. Only the compact BTF (a few MB)
 stays in the kernel, and modules are still stripped.
 
+The schedulers also record why they stop with `bpf_probe_read_kernel_str()`,
+which the kernel only offers with `BPF_EVENTS`. That needs perf events (on
+already) and uprobe events, so the kernel has tracepoints, uprobes and
+tracefs. It has none of the tracers: no function tracer, no kprobes, no event
+probes.
+
 The kernel recipe also builds two schedulers from the kernel's own
 `tools/sched_ext`, against this kernel's BTF, so they always match it:
 

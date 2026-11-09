@@ -132,7 +132,7 @@ See [Updating](Updating.md) for how that works.
 
 | Recipe | Why it is built here |
 |---|---|
-| `linux-busylinux` | the kernel and its sched_ext schedulers, see [Hardware and kernel](Hardware-and-Kernel.md) |
+| `linux-busylinux` | the kernel and its sched_ext scheduler, see [Hardware and kernel](Hardware-and-Kernel.md) |
 | `busylinux-init` | `inittab`, `rcS`, `rcK`, services, sysctls, firewall, profile; replaces `alpine-baselayout`'s OpenRC bits |
 | `libudev-zero` | Alpine's, plus a patch that makes sound cards visible to PipeWire |
 | `nftables` | without GNU GMP and Readline |

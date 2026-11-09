@@ -71,10 +71,10 @@ memory, see [Boot and init](Boot-and-Init.md#memory-mimalloc).
 ## sched_ext, in C
 
 sched_ext is in the kernel so the scheduler can be tried and swapped without
-a reboot, and it is off unless named in `/etc/scx.conf`. The schedulers built
-are the kernel's own C examples, compiled with the kernel against its BTF. They
-need no Rust toolchain, and cannot drift out of step with the kernel's
-sched_ext interface. The price is debug info in the kernel build, which makes
+a reboot, and it is off unless named in `/etc/scx.conf`. The scheduler built
+is the kernel's own C example, `scx_simple`, compiled with the kernel against
+its BTF. It needs no Rust toolchain, and cannot drift out of step with the
+kernel's sched_ext interface. The price is debug info in the kernel build, which makes
 it slower.
 
 ## Failing closed

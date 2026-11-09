@@ -69,6 +69,7 @@ script, and optionally `log/run`:
 | `dhcp` | `udhcpc` on the first wired card; see [Network](Network-and-Firewall.md) |
 | `seatd` | once `seatd` is installed: seat access for Wayland, group `seat` |
 | `dbus` | once `dbus` is installed: the system bus |
+| `scx` | the sched_ext scheduler `/etc/scx.conf` names; none by default (below) |
 
 `seatd` and `dbus` sleep for a minute and look again while their program is
 missing, so installing it later is enough. No reboot needed.
@@ -89,6 +90,33 @@ doas chmod 755 /etc/service/foo/run
 
 runsvdir notices it within five seconds. The program must stay in the
 foreground. [Docker](Docker-and-ROCm.md) is a full example with a log.
+
+## A sched_ext scheduler
+
+The kernel can hand CPU scheduling to a BPF scheduler (see
+[Hardware and kernel](Hardware-and-Kernel.md#sched_ext)). The `scx` service
+runs the one `/etc/scx.conf` names:
+
+```sh
+# /etc/scx.conf
+SCHEDULER=scx_simple
+ARGS=
+```
+
+Then `doas sv restart /etc/service/scx`, or wait a minute: with no scheduler
+named, the service checks the file again every minute. To go back to the
+kernel's own scheduler, empty `SCHEDULER=` and restart the service.
+
+The scheduler's per-second statistics are thrown away; its errors go to
+syslog (`grep scx /var/log/messages`). If it exits or the kernel's watchdog
+stops it, the kernel switches back to EEVDF at once, and runit starts the
+scheduler again a second later. `doctor` warns when a scheduler is named but
+none runs.
+
+Is it worth it? For gaming on a single-CCD CPU, EEVDF is already good;
+`scx_simple` can smooth frame times when the CPU is fully loaded (shader
+compilation, background builds), and costs nothing to try. Measure with
+MangoHud's frame-time graph rather than average FPS.
 
 ## Logins
 

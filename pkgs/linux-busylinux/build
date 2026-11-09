@@ -32,7 +32,7 @@ for symbol in MODULES BLK_DEV_INITRD DEVTMPFS_MOUNT EFI_STUB EFI_PARTITION \
               SYN_COOKIES MAGIC_SYSRQ EFIVAR_FS \
               NETFILTER NF_TABLES NF_CONNTRACK WIREGUARD \
               NTSYNC JOYSTICK_XPAD INPUT_JOYDEV INPUT_UINPUT DMIID HSA_AMD HSA_AMD_SVM \
-              CGROUP_BPF BPF_SYSCALL CGROUP_PIDS CPUSETS \
+              CGROUP_BPF BPF_SYSCALL CGROUP_PIDS CPUSETS DEBUG_INFO_BTF SCHED_CLASS_EXT \
               VETH BRIDGE NF_NAT NFT_NAT NFT_MASQ NFT_COMPAT \
               NETFILTER_XT_MATCH_ADDRTYPE NETFILTER_XT_MATCH_CONNTRACK \
               NETFILTER_XT_NAT NETFILTER_XT_TARGET_MASQUERADE; do
@@ -59,3 +59,10 @@ make -s INSTALL_MOD_PATH="$1" INSTALL_MOD_STRIP=1 modules_install
 rm -f "$1/lib/modules/$release/build" "$1/lib/modules/$release/source"
 install -Dm644 arch/x86/boot/bzImage "$1/boot/vmlinuz-busylinux"
 install -Dm644 .config "$1/boot/config-$release"
+
+# Two sched_ext schedulers, from this kernel's BTF, so they match it.
+make -s -C tools/sched_ext scx_simple scx_flatcg
+for b in scx_simple scx_flatcg; do
+    install -Dm755 "tools/sched_ext/build/bin/$b" "$1/usr/sbin/$b"
+    strip -s "$1/usr/sbin/$b"
+done

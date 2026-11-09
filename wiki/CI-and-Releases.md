@@ -49,6 +49,7 @@ succeed:
 - zram swap; the tty logins' realtime and file limits
 - `rc.local` ran; mimalloc in services and the shell
 - IPv6 privacy; Landlock and MGLRU are on
+- sched_ext: off at boot; `scx_simple` starts through the `scx` service and stops again
 - the packages are pinned
 - **fail closed**: flushing the ruleset keeps DHCP down; reloading brings it back
 - DHCP ignores bridges

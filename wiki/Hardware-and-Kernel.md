@@ -32,6 +32,8 @@ Realtek's.
   Windows games).
 - **ROCm**: `HSA_AMD` and `HSA_AMD_SVM` for `/dev/kfd`.
 - **Memory**: MGLRU (`LRU_GEN`, on by default), zram with zstd.
+- **Scheduling**: sched_ext (`SCHED_CLASS_EXT`), so a scheduler written in BPF
+  can replace the kernel's own; see [sched_ext](#sched_ext) below.
 - **Containers**: user namespaces, cgroups v2 with BPF, overlayfs, FUSE, veth,
   bridges, NAT and the iptables compatibility Docker still uses.
 - **Network**: nftables, conntrack, WireGuard.
@@ -73,6 +75,40 @@ copy what you choose back into the fragment. If you need an option the
 
 Modules are installed under `/lib/modules/RELEASE` and signed during the
 build. A module from anywhere else, such as an out-of-tree driver, will not load.
+
+## sched_ext
+
+sched_ext lets a BPF program take over CPU scheduling from the kernel's own
+scheduler (EEVDF) while the system runs, and hands it back when the program
+exits or misbehaves. A watchdog kills a scheduler that stalls a task, so a
+broken one cannot hang the machine.
+
+It needs the kernel's types in BTF form (`DEBUG_INFO_BTF`). `pahole` makes
+those from DWARF debug info during the build, so the kernel builds with debug
+info, which takes longer and more memory. Only the compact BTF (a few MB)
+stays in the kernel, and modules are still stripped.
+
+The kernel recipe also builds two schedulers from the kernel's own
+`tools/sched_ext`, against this kernel's BTF, so they always match it:
+
+| | |
+|---|---|
+| `scx_simple` | one queue for all CPUs, ordered by weighted run time (or FIFO with `-f`). Simple and fast where all cores share one L3 cache, as on the 7800X3D |
+| `scx_flatcg` | like `scx_simple`, but shares CPU time between cgroups first, with the hierarchy flattened for speed |
+
+They are C programs, built with clang (for the BPF part) and the in-tree
+libbpf and bpftool. They need `libelf` and `zlib` at run time. The larger
+schedulers of the scx project (`scx_lavd`, `scx_rusty`, `scx_bpfland`) are
+written in Rust and are not built here.
+
+Running one is the `scx` service's job; see
+[Boot and init](Boot-and-Init.md#a-sched_ext-scheduler). By hand:
+
+```sh
+doas scx_simple                    # runs until Ctrl+C, printing statistics
+cat /sys/kernel/sched_ext/state    # enabled while it runs, else disabled
+cat /sys/kernel/sched_ext/root/ops # simple
+```
 
 ### perl and the OID registry
 

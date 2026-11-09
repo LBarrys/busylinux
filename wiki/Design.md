@@ -68,6 +68,15 @@ That is not a system-wide guarantee: a program started without that environment
 uses musl's allocator. setuid programs always do, by design. The cost is
 memory, see [Boot and init](Boot-and-Init.md#memory-mimalloc).
 
+## sched_ext, in C
+
+sched_ext is in the kernel so the scheduler can be tried and swapped without
+a reboot, and it is off unless named in `/etc/scx.conf`. The schedulers built
+are the kernel's own C examples, compiled with the kernel against its BTF. They
+need no Rust toolchain, and cannot drift out of step with the kernel's
+sched_ext interface. The price is debug info in the kernel build, which makes
+it slower.
+
 ## Failing closed
 
 Where a mistake could leave the machine open, it is made to fail shut
@@ -102,5 +111,4 @@ package would not install.
 | AppArmor, SELinux | a policy for every program is a project of its own; Landlock and bubblewrap sandbox what needs it |
 | Polkit, logind, elogind | seatd gives seat access, and `doas` the rest |
 | Flatpak | see [Steam and games](Steam-and-Games.md#why-not) |
-| sched_ext schedulers | they need BTF debug info in the kernel and clang to build; EEVDF serves an 8-core single-CCD CPU well |
 | An initramfs | see above |

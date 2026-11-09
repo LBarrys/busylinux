@@ -56,6 +56,13 @@ for s in /etc/service/*; do
 done
 ok "services checked"
 if pidof mdevd > /dev/null; then ok "mdevd runs"; else warn "mdevd does not run"; fi
+sched=$(sed -n 's/^SCHEDULER=//p' /etc/scx.conf 2>/dev/null)
+if [ -n "$sched" ]; then
+    case $(cat /sys/kernel/sched_ext/state 2>/dev/null) in
+        enabled) ok "sched_ext runs $sched" ;;
+        *)       warn "/etc/scx.conf names $sched, but no sched_ext scheduler runs: grep scx /var/log/messages" ;;
+    esac
+fi
 
 # Memory, firewall, disk.
 if grep -q libmimalloc "/proc/$(pidof syslogd | cut -d' ' -f1)/maps" 2>/dev/null; then

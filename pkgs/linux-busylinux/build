@@ -60,16 +60,15 @@ rm -f "$1/lib/modules/$release/build" "$1/lib/modules/$release/source"
 install -Dm644 arch/x86/boot/bzImage "$1/boot/vmlinuz-busylinux"
 install -Dm644 .config "$1/boot/config-$release"
 
-# Two sched_ext schedulers, from this kernel's BTF, so they match it.
-# Their sources call a setter this kernel lacks; add it unless the kernel has it.
+# scx_simple, a sched_ext scheduler, from this kernel's BTF, so it matches it.
+# (scx_flatcg from the same folder stalled tasks in testing.)
+# Its source calls a setter this kernel lacks; add it unless the kernel has it.
 h=tools/sched_ext/include/scx/compat.bpf.h
 if ! grep -q scx_bpf_task_set_dsq_vtime "$h" kernel/sched/ext.c; then
     sed -i '$d' "$h"
     cat scx-dsq-vtime.h >> "$h"
     echo '#endif' >> "$h"
 fi
-make -s -C tools/sched_ext scx_simple scx_flatcg
-for b in scx_simple scx_flatcg; do
-    install -Dm755 "tools/sched_ext/build/bin/$b" "$1/usr/sbin/$b"
-    strip -s "$1/usr/sbin/$b"
-done
+make -s -C tools/sched_ext scx_simple
+install -Dm755 tools/sched_ext/build/bin/scx_simple "$1/usr/sbin/scx_simple"
+strip -s "$1/usr/sbin/scx_simple"

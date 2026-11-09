@@ -88,22 +88,26 @@ those from DWARF debug info during the build, so the kernel builds with debug
 info, which takes longer and more memory. Only the compact BTF (a few MB)
 stays in the kernel, and modules are still stripped.
 
-The schedulers also record why they stop with `bpf_probe_read_kernel_str()`,
+The scheduler also records why it stops with `bpf_probe_read_kernel_str()`,
 which the kernel only offers with `BPF_EVENTS`. That needs perf events (on
 already) and uprobe events, so the kernel has tracepoints, uprobes and
 tracefs. It has none of the tracers: no function tracer, no kprobes, no event
 probes.
 
-The kernel recipe also builds two schedulers from the kernel's own
-`tools/sched_ext`, against this kernel's BTF, so they always match it:
+The kernel recipe also builds **`scx_simple`** from the kernel's own
+`tools/sched_ext`, against this kernel's BTF, so it always matches it. It
+keeps one queue for all CPUs, ordered by weighted run time (or first-in
+first-out with `-f`): simple and fast where all cores share one L3 cache, as
+on the 7800X3D. It is a C program, built with clang (for the BPF part) and the
+in-tree libbpf and bpftool, and needs `libelf` and `zlib` at run time.
 
-| | |
-|---|---|
-| `scx_simple` | one queue for all CPUs, ordered by weighted run time (or FIFO with `-f`). Simple and fast where all cores share one L3 cache, as on the 7800X3D |
-| `scx_flatcg` | like `scx_simple`, but shares CPU time between cgroups first, with the hierarchy flattened for speed |
+Two fixes make it build and load on 6.18. Its source, as shipped in 6.18.62,
+calls `scx_bpf_task_set_dsq_vtime()`, which arrived in 6.19, so the recipe
+adds a stand-in that writes the field directly, as 6.18 allows. And the
+kernel needs `BPF_EVENTS` (below).
 
-They are C programs, built with clang (for the BPF part) and the in-tree
-libbpf and bpftool. They need `libelf` and `zlib` at run time. The larger
+`scx_flatcg`, from the same folder, is not built: in testing it left a task
+unscheduled until the kernel's watchdog removed it. The larger
 schedulers of the scx project (`scx_lavd`, `scx_rusty`, `scx_bpfland`) are
 written in Rust and are not built here.
 

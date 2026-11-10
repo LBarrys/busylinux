@@ -56,6 +56,9 @@ for s in /etc/service/*; do
 done
 ok "services checked"
 if pidof mdevd > /dev/null; then ok "mdevd runs"; else warn "mdevd does not run"; fi
+if [ -n "$(ver busybox-runit)" ] && [ -n "$(ver runit)" ]; then
+    warn "runit is installed beside busybox-runit, which replaces it: apk del runit"
+fi
 sched=$(sed -n 's/^SCHEDULER=//p' /etc/scx.conf 2>/dev/null)
 if [ -n "$sched" ]; then
     case $(cat /sys/kernel/sched_ext/state 2>/dev/null) in

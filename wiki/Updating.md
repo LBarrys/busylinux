@@ -21,7 +21,7 @@ the last count is a week old. The notice lives in `/var/lib/busylinux/updates`.)
 ## This repository's packages
 
 `linux-busylinux`, `busylinux-init`, `libudev-zero`, `nftables`, `dwl`,
-`gammastep`, `pipemixer`, `cclip`, `wgcf` and `busylinux-fonts` come from `pkgs/`. They are
+`gammastep`, `pipemixer`, `cclip`, `wgcf`, `busylinux-fonts` and `busybox-runit` come from `pkgs/`. They are
 **pinned**: `/etc/apk/world` names them as `NAME@busylinux`, and the
 `@busylinux` repository is the local one at `/var/lib/busylinux/repo`. So
 `apk upgrade` never swaps them for Alpine's builds of the same name. Some

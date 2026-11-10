@@ -56,7 +56,12 @@
 ## Services: runit
 
 `busylinux-supervise` sets the mimalloc preload (below) and runs
-`runsvdir /etc/service`. Each directory there is a service with a `run`
+`runsvdir /etc/service`. The runit tools (`runsvdir`, `runsv`, `sv`, `svlogd`,
+`chpst`) are BusyBox's, from this repository's `busybox-runit`: Alpine's own
+BusyBox leaves them out. They behave like runit's, and `sv NAME` means
+`/etc/service/NAME`. A system installed before `busybox-runit` switches over
+with `apk add busybox-runit@busylinux && apk del runit`; `doctor` warns while
+both are installed. Each directory there is a service with a `run`
 script, and optionally `log/run`:
 
 | Service | |

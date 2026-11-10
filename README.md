@@ -1,8 +1,8 @@
 # BusyLinux
 
-Alpine Linux edge with BusyBox init, runit and a `tinyconfig` kernel, made for
-one machine (Ryzen 7 7800X3D, Radeon RX 7900 GRE). Everything but `pkgs/` comes
-straight from Alpine.
+Alpine Linux edge with BusyBox init, BusyBox's runit tools and a `tinyconfig`
+kernel, made for one machine (Ryzen 7 7800X3D, Radeon RX 7900 GRE). Everything
+but `pkgs/` comes straight from Alpine.
 
 ## Build
 

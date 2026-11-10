@@ -8,7 +8,7 @@ Windows games. This page explains the main choices.
 
 Building every package would be a full-time job. Alpine already is small,
 musl-based, security-minded and fast-moving on edge. BusyLinux takes it as it
-is, and builds only what has to differ: ten recipes. Everything else updates
+is, and builds only what has to differ: eleven recipes. Everything else updates
 with `apk upgrade`, and Alpine's wiki applies.
 
 **Edge, not a stable branch**, because the desktop and Mesa move quickly and
@@ -26,7 +26,10 @@ Proton, and they get a glibc tree of their own.
 
 The whole boot is `rcS`, about 110 lines of `sh` that run top to bottom.
 There is no dependency solver, no unit files, and no state between boots.
-runit supervises the long-running services: each is a folder with a `run`
+runit supervises the long-running services, in BusyBox's version of its
+tools (`busybox-runit`): Alpine's BusyBox leaves them out, and Alpine's
+`runit` package also brings runit's own init, which is not used here. Each
+service is a folder with a `run`
 script that execs the program in the foreground, and runit restarts it if it
 dies. Ordering needs no graph: a service that needs something else waits for
 it in its own `run` script, as `dhcp` does for syslog and the firewall.

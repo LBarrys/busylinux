@@ -1,0 +1,8 @@
+version=1.38.0
+release=0
+desc="runit's supervision tools from BusyBox: runsvdir, runsv, sv, svlogd, chpst"
+url=https://busybox.net/
+license=GPL-2.0-only
+makedepends="build-base linux-headers"
+# Takes runit's files over, so it installs in its place.
+replaces="runit"

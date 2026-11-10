@@ -1,0 +1,20 @@
+#!/bin/sh -e
+# BusyBox with nothing but runit's tools; Alpine's BusyBox has none of them.
+make -s allnoconfig > /dev/null
+for c in RUNSV RUNSVDIR SV SVLOGD CHPST; do
+    sed -i "s/^# CONFIG_$c is not set$/CONFIG_$c=y/" .config
+done
+make -s oldconfig < /dev/null > /dev/null
+# sv NAME means /etc/service/NAME, where runsvdir looks.
+sed -i 's|^CONFIG_SV_DEFAULT_SERVICE_DIR=.*|CONFIG_SV_DEFAULT_SERVICE_DIR="/etc/service"|' .config
+make -s oldconfig < /dev/null > /dev/null
+for c in RUNSV RUNSVDIR SV SVLOGD CHPST; do
+    grep -q "^CONFIG_$c=y" .config || { echo "CONFIG_$c is off" >&2; exit 1; }
+done
+grep -q '^CONFIG_SV_DEFAULT_SERVICE_DIR="/etc/service"$' .config
+make -s busybox
+install -Dm755 busybox "$1/usr/bin/busybox-runit"
+mkdir -p "$1/usr/sbin"
+for a in runsvdir runsv sv svlogd chpst; do
+    ln -s ../bin/busybox-runit "$1/usr/sbin/$a"
+done

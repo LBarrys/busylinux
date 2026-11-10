@@ -136,6 +136,7 @@ See [Updating](Updating.md) for how that works.
 | `busylinux-init` | `inittab`, `rcS`, `rcK`, services, sysctls, firewall, profile; replaces `alpine-baselayout`'s OpenRC bits |
 | `libudev-zero` | Alpine's, plus a patch that makes sound cards visible to PipeWire |
 | `nftables` | without GNU GMP and Readline |
+| `busybox-runit` | runit's `runsvdir`, `runsv`, `sv`, `svlogd` and `chpst` from BusyBox (one 94 KB binary), in place of Alpine's `runit`; Alpine's BusyBox has none of them |
 | `dwl` | patches and `config.h` are compiled in |
 | `gammastep` | Wayland-only, without GeoClue, GUI or translations |
 | `pipemixer`, `cclip` | not in Alpine |

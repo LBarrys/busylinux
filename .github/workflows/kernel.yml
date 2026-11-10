@@ -16,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Delete the branches of finished kernel pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git ls-remote --heads origin 'kernel-*' | sed 's|.*refs/heads/||' | while read -r b; do
+            # Only once its pull request is merged or closed, and none is open.
+            [ -n "$(gh pr list --head "$b" --state all --json number --jq '.[]')" ] || continue
+            [ -z "$(gh pr list --head "$b" --state open --json number --jq '.[]')" ] || continue
+            git push -q origin --delete "$b" && echo "deleted $b"
+          done
+
       - name: Open a pull request for a new kernel
         env:
           GH_TOKEN: ${{ github.token }}

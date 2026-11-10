@@ -73,7 +73,8 @@ Every Monday, `kernel-bump.sh`:
 3. updates `meta`, `sources` and `sha256sums`.
 
 The workflow then opens a pull request on a `kernel-VERSION` branch and
-starts CI on it. A pull request opened with Actions' own token starts no
+starts CI on it. It first deletes the `kernel-*` branches whose pull requests
+are merged or closed. A pull request opened with Actions' own token starts no
 workflows itself. For this to work, allow Actions to create pull requests:
 **Settings > Actions > General > Allow GitHub Actions to create and approve
 pull requests**.

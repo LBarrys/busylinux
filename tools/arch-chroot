@@ -48,6 +48,10 @@ run() {
     # Mesa keeps 1 GB of compiled shaders by default; Proton games need 1-3 GB
     # each, and an evicted shader means a stutter when it is compiled again.
     [ -n "${MESA_SHADER_CACHE_MAX_SIZE:-}" ] || export MESA_SHADER_CACHE_MAX_SIZE=10G
+    # The tree's libudev waits for udevd, which this system lacks, so SDL would
+    # find no controllers, Steam Input's virtual ones included; SDL scans
+    # /dev/input itself instead.
+    [ -n "${SDL_JOYSTICK_DISABLE_UDEV:-}" ] || export SDL_JOYSTICK_DISABLE_UDEV=1
     # shellcheck disable=SC2086
     exec bwrap --ro-bind "$R" / \
         --dev-bind /dev /dev --proc /proc --ro-bind /sys /sys --bind /tmp /tmp \

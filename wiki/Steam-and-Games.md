@@ -36,16 +36,14 @@ arch-chroot steam
    `mangohud` + `lib32-mangohud`, `vulkan-radeon` + `lib32-vulkan-radeon`,
    `lib32-mesa`, and the **Source Han Sans** JP, KR and CN fonts. Name other
    packages to install those instead: `tools/arch-setup steam vulkan-intel ...`.
-5. Installs `arch-chroot` into `~/.local/bin` and a **Steam launcher entry**,
+5. Installs `arch-chroot` into `~/.local/bin`, Steam's icons from the tree
+   into `~/.local/share/icons`, and a **Steam launcher entry**,
    `~/.local/share/applications/steam.desktop`, which also handles `steam://`
    links. It asks for the dedicated GPU (`PrefersNonDefaultGPU`).
 
 The root steps run through `doas`. The tree takes a few GB, mostly
 Mesa, LLVM and the 32-bit libraries. Steam's runtime and games live in
 your home.
-
-`Icon=steam` in the launcher entry comes from your icon theme (Papirus has
-it). The icon inside the tree is not visible to the host.
 
 ## arch-chroot
 
@@ -83,6 +81,7 @@ And it sets:
 | no `LD_PRELOAD` | the tree's glibc cannot load the host's musl mimalloc; every program would print an error |
 | `LANG=en_US.UTF-8` | unless you set one; Steam's runtime insists on a UTF-8 locale |
 | `MESA_SHADER_CACHE_MAX_SIZE=10G` | unless you set one; see [Shader cache](#shader-cache) |
+| `SDL_JOYSTICK_DISABLE_UDEV=1` | unless you set one; see [Controllers](#controllers) |
 | a separate fontconfig cache | `~/.cache/fontconfig-arch` is mounted over `~/.cache/fontconfig`. Arch's fontconfig is newer than Alpine's, and each refuses the other's cache files ("newer version" warnings) |
 
 Because the tree is read-only to your programs, nothing Steam or a game
@@ -210,25 +209,20 @@ Xbox-style pads (xpad), and pads that HID or SDL know, work over USB. Steam
 needs `/dev/uinput` (group `input`, which your user is in) for **Steam
 Input**, its own remapping layer that creates a virtual pad.
 
-That virtual pad has a catch. Steam creates it on the host, and programs in
-the tree look for pads through libudev. The tree's libudev is systemd's, and
-it expects `udevd`'s database and events, which BusyLinux does not have. So a
-game in the tree may not see Steam Input's virtual pad, or any pad. Two fixes:
+Programs in the tree look for pads through libudev. The tree's libudev is
+systemd's, and it expects `udevd`'s database and events, which BusyLinux does
+not have, so it finds no pads at all, Steam Input's virtual one included. So
+`arch-chroot` sets `SDL_JOYSTICK_DISABLE_UDEV=1`: SDL, which Steam, Proton and
+most games use for pads, then scans `/dev/input` itself.
 
-- **Let SDL scan `/dev/input` itself**, bypassing udev, in the launch options:
-
-  ```
-  SDL_JOYSTICK_DISABLE_UDEV=1 %command%
-  ```
-
-- **Turn Steam Input off** for the game (Properties > Controller > Disable Steam
-  Input), so the game reads the real pad directly.
+If a game still sees no pad, **turn Steam Input off** for it (Properties >
+Controller > Disable Steam Input), so it reads the real pad directly.
 
 If the buttons are mapped wrong, give SDL the right mapping in
 `SDL_GAMECONTROLLERCONFIG`. For example, the GameSir G7 SE (USB `3537:1010`):
 
 ```
-SDL_JOYSTICK_DISABLE_UDEV=1 SDL_GAMECONTROLLERCONFIG="03000000373500001010000033060000,GameSir G7 SE,a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,rightshoulder:b5,back:b6,start:b7,guide:b8,leftstick:b9,rightstick:b10,leftx:a0,lefty:a1,lefttrigger:a2,rightx:a3,righty:a4,righttrigger:a5,dpup:h0.1,dpright:h0.2,dpdown:h0.4,dpleft:h0.8,platform:Linux," %command%
+SDL_GAMECONTROLLERCONFIG="03000000373500001010000033060000,GameSir G7 SE,a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,rightshoulder:b5,back:b6,start:b7,guide:b8,leftstick:b9,rightstick:b10,leftx:a0,lefty:a1,lefttrigger:a2,rightx:a3,righty:a4,righttrigger:a5,dpup:h0.1,dpright:h0.2,dpdown:h0.4,dpleft:h0.8,platform:Linux," %command%
 ```
 
 To find a pad's GUID and button numbers: `evtest` on the host, or SDL's

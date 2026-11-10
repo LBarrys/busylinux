@@ -79,6 +79,11 @@ else
 fi
 
 install -Dm755 "$TOOLS/arch-chroot" "$HOME/.local/bin/arch-chroot"
+# Steam's icons, from the tree, where launchers cannot see them.
+(cd "$R/usr/share/icons/hicolor" 2>/dev/null &&
+ find . -name steam.png | while read -r f; do
+     install -Dm644 "$f" "$HOME/.local/share/icons/hicolor/${f#./}"
+ done) || :
 desktop=$HOME/.local/share/applications/steam.desktop
 if [ ! -e "$desktop" ]; then
     mkdir -p "${desktop%/*}"

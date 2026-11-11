@@ -140,5 +140,6 @@ See [Updating](Updating.md) for how that works.
 | `dwl` | patches and `config.h` are compiled in |
 | `gammastep` | Wayland-only, without GeoClue, GUI or translations |
 | `pipemixer`, `cclip` | not in Alpine |
+| `claude-code` | not in Alpine: Anthropic's own musl build from the npm registry, unstripped (stripping cuts the program off its Bun runtime), updated by the recipe and not by itself |
 | `wgcf` | newer than Alpine's |
 | `busylinux-fonts` | fonts Alpine lacks or packages older, with the fontconfig setup that ties them together |

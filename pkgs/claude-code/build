@@ -1,0 +1,5 @@
+#!/bin/sh -e
+# Static apart from musl's libc. Updates come through this recipe, not the program itself.
+install -Dm755 claude "$1/usr/bin/claude"
+install -Dm644 claude-code.sh "$1/etc/profile.d/claude-code.sh"
+install -Dm644 LICENSE.md "$1/usr/share/licenses/claude-code/LICENSE.md"

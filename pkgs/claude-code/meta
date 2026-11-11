@@ -1,0 +1,7 @@
+version=2.1.322
+release=0
+desc="Claude Code, Anthropic's agentic coding tool, from its official musl build"
+url=https://code.claude.com
+license="LicenseRef-Anthropic-Proprietary"
+# One Bun binary with the program appended to the ELF file: strip would cut it off.
+options="nostrip"

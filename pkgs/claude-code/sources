@@ -1,0 +1,3 @@
+# The binary npm installs for musl x86-64; the npm package itself only wraps it.
+# Not published anywhere by CI: only the kernel goes to a release.
+https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64-musl/-/claude-code-linux-x64-musl-2.1.322.tgz

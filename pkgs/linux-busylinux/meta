@@ -1,4 +1,4 @@
-version=6.18.62
+version=6.18.63
 release=0
 desc="Linux kernel built from tinyconfig for Ryzen 7000 / Radeon RX 7000 hardware, with the scx_simple sched_ext scheduler"
 url=https://www.kernel.org/

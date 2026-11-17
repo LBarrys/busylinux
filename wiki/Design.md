@@ -83,7 +83,9 @@ it slower.
 ## Failing closed
 
 Where a mistake could leave the machine open, it is made to fail shut
-instead. A firewall that does not load keeps the network down. Modules
+instead. And `doas` is the base system's only setuid program: BusyBox's setuid helper
+(`busybox-suid`) is left out, so a bug in BusyBox's `su`, `passwd` or `mount`
+cannot be used to become root. A firewall that does not load keeps the network down. Modules
 must be signed. io_uring is off. A kernel build that loses a hardening
 option does not finish.
 

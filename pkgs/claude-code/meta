@@ -1,4 +1,4 @@
-version=2.1.322
+version=2.1.328
 release=0
 desc="Claude Code, Anthropic's agentic coding tool, from its official musl build"
 url=https://code.claude.com

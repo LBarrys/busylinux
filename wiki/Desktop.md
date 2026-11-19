@@ -73,7 +73,7 @@ The configuration is `pkgs/dwl/files/config.h`. Change it, then
 | Super+T | terminal (`footclient`; start `foot --server` in autostart) |
 | Super+Space | launcher (fuzzel) |
 | Super+B | Firefox |
-| Super+M | `fff` file manager in a terminal |
+| Super+M | `lbsfm` file manager in a terminal (from `lbstools`) |
 | Super+V | clipboard history (cclip, picked with fuzzel) |
 | Super+R | restart the bar's status text |
 | Super+Q | close the window |

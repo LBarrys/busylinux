@@ -156,7 +156,7 @@ sendscratchpad(const Arg *arg)
 
 static const char *termcmd[] = { "footclient", NULL };
 static const char *browsercmd[] = { "firefox-esr", NULL };
-static const char *fffcmd[] = { "footclient", "-e", "sh", "-ic", "fff", NULL };
+static const char *fmcmd[] = { "footclient", "-e", "sh", "-ic", "lbsfm", NULL };   /* lbstools */
 /* tray icon menus (right click), shown with fuzzel on the focused monitor */
 static const char *dmenucmd[] = { "/bin/sh", "-c",
 	"exec fuzzel --dmenu --output=" SELMON " --placeholder='Menu: '", NULL };
@@ -166,7 +166,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_t,           spawn,            {.v = termcmd} },
 	{ MODKEY,                    XKB_KEY_space,       spawn,            SHCMD("fuzzel --output=" SELMON) },
 	{ MODKEY,                    XKB_KEY_b,           spawn,            {.v = browsercmd} },
-	{ MODKEY,                    XKB_KEY_m,           spawn,            {.v = fffcmd} },
+	{ MODKEY,                    XKB_KEY_m,           spawn,            {.v = fmcmd} },
 	/* cclip list prints "id<TAB>mime<TAB>preview": show only the preview
 	 * (--with-nth=3), print only the id (--accept-nth=1) for cclip copy. */
 	{ MODKEY,                    XKB_KEY_v,           spawn,            SHCMD("cclip list | fuzzel --dmenu --output=" SELMON " --placeholder='Clipboard: ' --with-nth=3 --accept-nth=1 | cclip copy -") },

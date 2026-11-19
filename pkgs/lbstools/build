@@ -1,0 +1,8 @@
+#!/bin/sh -e
+# Three small C programs; libmupdf and libarchive become dependencies by themselves.
+cc $CFLAGS -O2 -Wall -o lbsfm lbsfm.c
+cc $CFLAGS -O2 -Wall -o lbsviewer lbsviewer.c -lmupdf -lm -lpthread
+cc $CFLAGS -O2 -Wall -o lbsx lbsx.c -larchive
+for p in lbsfm lbsviewer lbsx; do
+    install -Dm755 "$p" "$1/usr/bin/$p"
+done

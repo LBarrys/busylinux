@@ -140,7 +140,18 @@ while (`permit persist :wheel`). It is the base system's only setuid program
 `crontab`, `vlock` and `traceroute` setuid root, is not installed. Those
 commands still work for root, so as a user put `doas` in front:
 `doas passwd alice` to change your password, `doas mount`, `doas crontab -e`.
-On a system installed before this, `doas apk del busybox-suid` removes it.
+
+On a system installed before this, remove it in one go:
+
+```sh
+doas apk del busybox-suid && doas /bin/busybox --install -s
+```
+
+The second half matters: `busybox-suid` owns the links for those commands, so
+removing it removes `mount`, `umount`, `su` and the rest, and Alpine does not
+put BusyBox's plain links back by itself. Without `mount` the next boot cannot
+remount `/` read-write. `busybox --install -s` only adds missing links, and
+`doctor` warns while `mount` or `umount` is missing.
 
 ## Memory: mimalloc
 

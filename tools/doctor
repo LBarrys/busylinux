@@ -56,9 +56,10 @@ for s in /etc/service/*; do
 done
 ok "services checked"
 if pidof mdevd > /dev/null; then ok "mdevd runs"; else warn "mdevd does not run"; fi
-# Boot and shutdown need these; removing busybox-suid takes its links away.
+# Boot and shutdown need these; removing busybox-suid leaves them pointing at
+# its missing /bin/bbsuid.
 for c in mount umount; do
-    command -v "$c" > /dev/null || warn "$c is missing, so boot would fail: busybox --install -s"
+    command -v "$c" > /dev/null || warn "$c is missing, so boot would fail: ln -sf /bin/busybox /bin/$c"
 done
 if [ -n "$(ver busybox-runit)" ] && [ -n "$(ver runit)" ]; then
     warn "runit is installed beside busybox-runit, which replaces it: apk del runit"

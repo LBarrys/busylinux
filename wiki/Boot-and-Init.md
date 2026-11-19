@@ -141,17 +141,22 @@ while (`permit persist :wheel`). It is the base system's only setuid program
 commands still work for root, so as a user put `doas` in front:
 `doas passwd alice` to change your password, `doas mount`, `doas crontab -e`.
 
-On a system installed before this, remove it in one go:
+On a system installed before this, remove it and point the commands back at
+BusyBox, in one go and before any reboot:
 
 ```sh
-doas apk del busybox-suid && doas /bin/busybox --install -s
+doas apk del busybox-suid
+for f in /bin/mount /bin/umount /bin/su /usr/bin/passwd /usr/bin/crontab \
+         /usr/bin/vlock /usr/bin/traceroute /usr/bin/traceroute6; do
+    [ "$(readlink "$f")" = /bin/bbsuid ] && doas ln -sf /bin/busybox "$f"
+done
 ```
 
-The second half matters: `busybox-suid` owns the links for those commands, so
-removing it removes `mount`, `umount`, `su` and the rest, and Alpine does not
-put BusyBox's plain links back by itself. Without `mount` the next boot cannot
-remount `/` read-write. `busybox --install -s` only adds missing links, and
-`doctor` warns while `mount` or `umount` is missing.
+The second half matters. `busybox-suid` owns the links for those commands, so
+removing it removes `mount`, `umount`, `su` and the rest, and without `mount`
+the next boot cannot remount `/` read-write. `busybox --install -s` does not
+help: Alpine's BusyBox links those commands to the missing `/bin/bbsuid`
+again. `doctor` warns while `mount` or `umount` is missing.
 
 ## Memory: mimalloc
 

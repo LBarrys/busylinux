@@ -1,0 +1,6 @@
+version=1
+release=0
+desc="lbsfm (terminal file manager), lbsviewer (PDF/image viewer for Wayland), lbsx (archive extractor)"
+url=https://github.com/LBarrys/busylinux
+license=MIT
+makedepends="build-base mupdf-dev libarchive-dev"

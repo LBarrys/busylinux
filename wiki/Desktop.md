@@ -112,6 +112,13 @@ programs just work.
   lon=46.7
   ```
 - **pipemixer**: a PipeWire volume mixer in the terminal.
+- **lbstools** (`apk add lbstools@busylinux`): `lbsfm`, a terminal file manager
+  (`LBSFM_HIDDEN`, `LBSFM_PREVIEW` and `LBSFM_OPENER` change its defaults);
+  `lbsviewer -p file.pdf` or `-i image`, a PDF and image viewer that speaks
+  Wayland itself, with arrow keys, Space, Home and End to turn pages and `q` to
+  quit; and `lbsx [-C dir] archive...`, which extracts zip, 7z, rar and tar
+  (compressed tars too), refuses entries that would land outside the target,
+  and asks for a zip's password when it needs one.
 - **cclip**: clipboard history, kept in SQLite. `cclipd` watches the clipboard;
   `cclip list`, `cclip copy ID`.
 

@@ -185,6 +185,13 @@ The setup:
   differently. Text marked as Japanese (a page's `lang`, which browsers pass
   on) gets Sarasa's J variant, Korean K, Taiwanese TC, Hong Kong and Macau HC,
   and everything else SC.
+- **Emoji in colour, text never in emoji**: fontconfig ranks colour fonts
+  above any list, which made OpenMoji draw digits and spaces too. Text
+  therefore asks for plain fonts, OpenMoji keeps only its emoji (its ASCII is
+  dropped) and Unifont gives up its black-and-white emoji, so emoji fall
+  through to OpenMoji and everything else comes from the fonts above it. The
+  lists are strong preferences, so a font claiming a language (Unifont claims
+  nearly all) cannot jump ahead of them.
 - **Rendering**: antialiasing, slight hinting, RGB subpixel order.
 
 Check it:

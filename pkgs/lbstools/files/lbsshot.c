@@ -181,7 +181,8 @@ struct output {
     size_t size;
     /* selection overlay */
     uint32_t surf, layer, cb;
-    int pw, ph, configured, dirty, waiting;
+    int pw, ph, configured, dirty, waiting, shown;
+    int last[4];                        /* the bright rect now on screen */
     uint32_t *frozen;                   /* the captured screen at overlay resolution */
     int *ox, *oy;                       /* overlay pixel -> offset into data */
     struct ovbuf ob[2];
@@ -321,13 +322,12 @@ static void dim_rect(struct output *o, uint32_t *dst, const int *r)    /* frozen
 static void draw_overlay(struct output *o)
 {
     struct ovbuf *b = !o->ob[0].busy ? &o->ob[0] : !o->ob[1].busy ? &o->ob[1] : NULL;
-    int nr[4] = { 0, 0, 0, 0 }, s = o->scale, bw = 2 * s, fresh = 0;
+    int nr[4] = { 0, 0, 0, 0 }, s = o->scale, bw = 2 * s;
     if (!b || o->waiting) return;       /* drawn when the compositor is ready */
     if (!b->id) {
         int all[4] = { 0, 0, o->pw, o->ph };
         b->px = shm_buffer(o->pw, o->ph, o->pw * 4, FMT_XRGB, &b->id, T_OVBUF, b, &b->size);
         dim_rect(o, b->px, all);
-        fresh = 1;
     }
     if (sel.pressed) {                  /* the selection in overlay pixels, with its border */
         double x0, y0, x1, y1;
@@ -353,13 +353,15 @@ static void draw_overlay(struct output *o)
     } else if (b->r[2] > b->r[0]) {
         dim_rect(o, b->px, b->r);
     }
-    /* damage: on screen is the other buffer (its rect bright), so what changes
-     * is that rect plus the new one; the very first frame is all new */
-    struct ovbuf *other = b == &o->ob[0] ? &o->ob[1] : &o->ob[0];
+    /* damage: the screen is dim apart from the rect shown last, and so is this
+     * buffer apart from the new one: what changes is those two rects. It must
+     * not depend on which buffer was shown last: GPU renderers keep the last
+     * picture and copy in only the damage, and the compositor may hand the
+     * same buffer back every time. The very first frame is all new. */
     int dmg[4] = { 0, 0, 0, 0 };
-    if (fresh && !other->id) { dmg[2] = o->pw; dmg[3] = o->ph; }
+    if (!o->shown) { dmg[2] = o->pw; dmg[3] = o->ph; o->shown = 1; }
     else {
-        const int *rs[2] = { nr, other->r };
+        const int *rs[2] = { nr, o->last };
         for (int k = 0; k < 2; k++) {
             const int *r = rs[k];
             if (r[2] <= r[0]) continue;
@@ -371,6 +373,7 @@ static void draw_overlay(struct output *o)
         }
     }
     memcpy(b->r, nr, sizeof nr);
+    memcpy(o->last, nr, sizeof nr);
     b->busy = 1;
     o->waiting = 1;
     o->dirty = 0;

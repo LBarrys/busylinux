@@ -1,5 +1,5 @@
 version=1
-release=1
+release=2
 desc="lbsfm (terminal file manager), lbsviewer (PDF/image viewer for Wayland), lbsx (archive extractor), lbsshot (Wayland screenshots)"
 url=https://github.com/LBarrys/busylinux
 license=MIT

@@ -10,6 +10,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
+    lbstools@busylinux wl-clipboard \
     xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux
 ```
 
@@ -84,7 +85,8 @@ The configuration is `pkgs/dwl/files/config.h`. Change it, then
 | Super+F / Super+Shift+F | fullscreen / monocle |
 | Super+S / Super+Shift+S | send to / show the scratchpad |
 | Super+1, 2 | view a tag; with Shift, move the window there; with Ctrl, toggle |
-| Super+P / Super+Ctrl+P | screenshot of a region / the screen (`~/.config/dwl/screenshot.sh`) |
+| Super+P | screenshot with `lbsshot`: drag a region or click a monitor, Esc or right click cancels; saved in `~/Downloads` and copied to the clipboard |
+| Super+Ctrl+P | `~/.config/dwl/screenshot.sh screen`, your own script |
 | Super+drag | move (left button), resize (right), float (middle) |
 | Ctrl+Alt+E | quit dwl |
 | Ctrl+Alt+F1-F12 | switch console |
@@ -118,7 +120,10 @@ programs just work.
   Wayland itself, with arrow keys, Space, Home and End to turn pages and `q` to
   quit; and `lbsx [-C dir] archive...`, which extracts zip, 7z, rar and tar
   (compressed tars too), refuses entries that would land outside the target,
-  and asks for a zip's password when it needs one.
+  and asks for a zip's password when it needs one; `lbsshot [file | -]`, which
+  freezes the screen, lets you drag a region or click a monitor, and writes a
+  PNG (the pointer is left out). It needs only zlib and the compositor's
+  screencopy and layer-shell support, which dwl has.
 - **cclip**: clipboard history, kept in SQLite. `cclipd` watches the clipboard;
   `cclip list`, `cclip copy ID`.
 

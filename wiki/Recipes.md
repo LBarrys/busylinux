@@ -140,7 +140,7 @@ See [Updating](Updating.md) for how that works.
 | `dwl` | patches and `config.h` are compiled in |
 | `gammastep` | Wayland-only, without GeoClue, GUI or translations |
 | `pipemixer`, `cclip` | not in Alpine |
-| `lbstools` | this repository's own programs: `lbsfm` (terminal file manager, libc only), `lbsviewer` (PDF and image viewer speaking Wayland directly, MuPDF only) and `lbsx` (zip, 7z, rar and tar extractor, libarchive only) |
+| `lbstools` | this repository's own programs: `lbsfm` (terminal file manager, libc only), `lbsviewer` (PDF and image viewer speaking Wayland directly, MuPDF only) `lbsx` (zip, 7z, rar and tar extractor, libarchive only) and `lbsshot` (screenshots, zlib only) |
 | `claude-code` | not in Alpine: Anthropic's own musl build from the npm registry, unstripped (stripping cuts the program off its Bun runtime), updated by the recipe and not by itself |
 | `wgcf` | newer than Alpine's |
 | `busylinux-fonts` | fonts Alpine lacks or packages older, with the fontconfig setup that ties them together |

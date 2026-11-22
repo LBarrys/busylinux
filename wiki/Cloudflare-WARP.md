@@ -66,10 +66,22 @@ WARP is off.
 
 ## Start it at boot
 
-Add `warp on` to `/etc/rc.local`. It needs the network, so wait for a default
-route first:
+Give it a runit service. `/etc/service/warp/run` (mode 755) waits for a
+default route, brings the tunnel up, then stays, so `sv down` can end it:
 
 ```sh
-( for i in $(seq 30); do ip route show default | grep -q . && break; sleep 1; done
-  warp on ) &
+#!/bin/sh
+exec 2>&1
+ip route show default | grep -q . || exec sleep 5
+warp on || exec sleep 30
+exec sleep 2147483647
 ```
+
+and `/etc/service/warp/finish` (mode 755) takes it down again:
+
+```sh
+#!/bin/sh
+if ip link show wgcf > /dev/null 2>&1; then warp off; fi
+```
+
+`doas sv down /etc/service/warp` turns it off until you `sv up` it.

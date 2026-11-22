@@ -1,2 +1,0 @@
-# min hour day month weekday
-17 * * * * /usr/libexec/busylinux/updates-check

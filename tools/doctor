@@ -15,7 +15,6 @@ PKGS=${TOOLS%/*}/pkgs
 bad=0
 ok()   { printf 'ok    %s\n' "$*"; }
 warn() { printf 'WARN  %s\n' "$*"; bad=1; }
-note() { printf 'note  %s\n' "$*"; }
 ver()  { apk list --installed "$1" 2>/dev/null | sed -n "s/^$1-\([0-9][^ ]*\) .*/\1/p"; }
 
 # Kernel: the one running against the one installed.
@@ -82,8 +81,5 @@ if grep -q '^/dev/zram0 ' /proc/swaps; then ok "zram swap on"; else warn "no zra
 if [ -n "$(nft list tables 2>/dev/null)" ]; then ok "firewall loaded"; else warn "no firewall ruleset: nft -f /etc/nftables.conf"; fi
 use=$(df -P / | awk 'NR == 2 { sub("%", "", $5); print $5 }')
 if [ "$use" -lt 90 ]; then ok "/ is $use% full"; else warn "/ is $use% full"; fi
-
-# Updates the weekly check found.
-if [ -s /var/lib/busylinux/updates ]; then note "$(cat /var/lib/busylinux/updates)"; fi
 
 exit "$bad"

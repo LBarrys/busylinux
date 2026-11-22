@@ -8,15 +8,11 @@ There are two kinds of package, and each updates in its own way.
 doas apk upgrade
 ```
 
-Nothing upgrades by itself. Once a week cron runs `updates-check`, which counts
-the waiting updates. The count is shown at login:
+Nothing upgrades or checks by itself. To see what is waiting:
 
+```sh
+doas apk update -q && apk version -l '<'
 ```
-12 package updates are waiting: doas apk upgrade
-```
-
-(`/usr/libexec/busylinux/updates-check` runs hourly but only does anything once
-the last count is a week old. The notice lives in `/var/lib/busylinux/updates`.)
 
 ## This repository's packages
 
@@ -78,7 +74,6 @@ a `WARN`:
 - `.apk-new` files
 - every runit service is up, and mdevd runs
 - services use mimalloc, zram swap is on, the firewall is loaded, `/` is under 90% full
-- the weekly update count
 
 It re-runs itself through `doas` when started as a user.
 

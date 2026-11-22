@@ -1,9 +1,11 @@
 /* lbsshot - screenshot tool for Wayland: grim + slurp in one
  *
- * Usage:   lbsshot [file | -]
+ * Usage:   lbsshot [-c] [file | -]
  *            Drag to select a region, or click to take a whole output.
  *            Esc or right click cancels.
- *            file: the PNG to write; "-" writes to stdout (e.g. lbsshot - | wl-copy).
+ *            -c: also put the PNG on the clipboard. lbsshot then waits in the
+ *                background, serving it, until something else is copied.
+ *            file: the PNG to write; "-" writes to stdout.
  *            Default: $XDG_PICTURES_DIR, ~/Pictures or ., named
  *            YYYYmmdd_HHhMMmSSs_lbsshot.png
  *
@@ -13,13 +15,15 @@
  *
  * Talks the Wayland wire protocol directly (no libwayland) and needs a
  * compositor with wlr-screencopy and wlr-layer-shell (sway, Hyprland, river,
- * Wayfire, labwc, ...). Only dependency: zlib, for PNG.
+ * Wayfire, labwc, ...), plus ext- or wlr-data-control for -c. Only
+ * dependency: zlib, for PNG.
  *
  * Build:   cc -O2 -s -o lbsshot lbsshot.c -lz      (Alpine: apk add gcc musl-dev zlib-dev)
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -58,7 +62,7 @@ static void die(const char *fmt, ...)
 
 enum {                                  /* what each object id is, for dispatch */
     T_NONE, T_REGISTRY, T_SYNC, T_FRAMECB, T_OUTPUT, T_XDGOUT, T_FRAME, T_CAPBUF,
-    T_LAYER, T_OVBUF, T_SEAT, T_POINTER, T_KEYBOARD,
+    T_LAYER, T_OVBUF, T_SEAT, T_POINTER, T_KEYBOARD, T_DCSOURCE,
 };
 enum { MAXID = 1 << 14 };
 
@@ -186,6 +190,9 @@ struct output {
 uint32_t shm;
 static uint32_t registry, compositor, copier, layershell, xdgman, seat, pointer, keyboard, shapes;
 static uint32_t copier_ver, seat_ver;
+static uint32_t dc_ext, dc_wlr;         /* data-control managers, for -c */
+static unsigned char *png;              /* the written PNG, served by -c */
+static size_t pnglen;
 static struct output out[MAXOUT];
 static int nout, synced;
 
@@ -438,6 +445,8 @@ static void on_global(uint32_t name, const char *iface, uint32_t v)
     else if (!strcmp(iface, "zwlr_layer_shell_v1")) { id = &layershell; ver = v < 4 ? v : 4; }
     else if (!strcmp(iface, "zxdg_output_manager_v1")) { id = &xdgman; ver = v < 3 ? v : 3; }
     else if (!strcmp(iface, "wp_cursor_shape_manager_v1")) id = &shapes;
+    else if (!strcmp(iface, "ext_data_control_manager_v1")) id = &dc_ext;
+    else if (!strcmp(iface, "zwlr_data_control_manager_v1")) id = &dc_wlr;
     else if (!strcmp(iface, "wl_seat") && !seat) { id = &seat; type = T_SEAT; ver = seat_ver = v < 4 ? v : 4; }
     else if (!strcmp(iface, "wl_output") && nout < MAXOUT) {
         struct output *o = &out[nout++];
@@ -545,6 +554,21 @@ static void dispatch(uint32_t obj, uint32_t op, const uint32_t *a, size_t n)
         }
         break;
     case T_POINTER: on_pointer(op, a); break;
+    case T_DCSOURCE:
+        if (op == 0) {                                      /* send: write the PNG to the reader */
+            int fd = take_fd();
+            const unsigned char *p = png;
+            size_t left = pnglen;
+            while (fd >= 0 && left) {
+                ssize_t k = write(fd, p, left);
+                if (k < 0 && errno == EINTR) continue;
+                if (k <= 0) break;
+                p += k;
+                left -= k;
+            }
+            if (fd >= 0) close(fd);
+        } else if (op == 1) exit(0);                        /* cancelled: something else was copied */
+        break;
     case T_KEYBOARD:
         if (op == 0) { int fd = take_fd(); if (fd >= 0) close(fd); }   /* keymap: not needed */
         else if (op == 3 && a[2] == 1 && a[3] == 1) sel.cancelled = 1;  /* Esc (same key on every layout) */
@@ -630,8 +654,9 @@ static void write_png(const uint32_t *img, int w, int h)
 
 static void usage(int code)
 {
-    fputs("usage: lbsshot [file | -]\n"
+    fputs("usage: lbsshot [-c] [file | -]\n"
           "  drag to select a region, click to take a whole output; Esc or right click cancels\n"
+          "  -c   also put the PNG on the clipboard (served in the background until replaced)\n"
           "  file defaults to ~/Pictures/YYYYmmdd_HHhMMmSSs_lbsshot.png; - writes to stdout\n",
           code ? stderr : stdout);
     exit(code);
@@ -655,11 +680,12 @@ static const char *default_path(void)
 int main(int argc, char **argv)
 {
     const char *path = NULL;
-    int rx, ry, rw, rh, i;
+    int rx, ry, rw, rh, i, copy = 0;
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (!strcmp(a, "-h") || !strcmp(a, "--help")) usage(0);
+        else if (!strcmp(a, "-c")) copy = 1;
         else if (a[0] == '-' && a[1]) usage(1);
         else if (!path) path = a;
         else usage(1);
@@ -688,6 +714,8 @@ int main(int argc, char **argv)
     if (!copier) die("this compositor doesn't support wlr-screencopy (sway, Hyprland, river, ... do)");
     if (!shm || !nout) die("no outputs");
     if (!layershell || !compositor || !seat) die("this compositor doesn't support wlr-layer-shell (needed to select)");
+    if (copy && !dc_ext && !dc_wlr) die("this compositor doesn't support data-control (needed for -c)");
+    if (copy && out_fd == 1) die("-c needs a file to write, not -");
     for (i = 0; xdgman && i < nout; i++) {
         out[i].xdg = new_id(T_XDGOUT, &out[i]);
         begin(xdgman, 1); put(out[i].xdg); put(out[i].wl); end();
@@ -757,5 +785,38 @@ int main(int argc, char **argv)
 
     write_png(img, W, H);
     if (out_fd != 1 && close(out_fd)) die("%s: %s", path, strerror(errno));
-    return 0;
+    made = NULL;                        /* the file is complete: keep it whatever follows */
+    if (!copy) return 0;
+
+    /* -c: read the PNG back and offer it as the clipboard. Data-control needs
+     * no focus or input serial; cclipd and other managers read it at once. */
+    struct stat st;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0 || fstat(fd, &st) || !(png = malloc(st.st_size ? st.st_size : 1))) die("%s: cannot read it back", path);
+    for (size_t got = 0; got < (size_t)st.st_size;) {
+        ssize_t k = read(fd, png + got, st.st_size - got);
+        if (k < 0 && errno == EINTR) continue;
+        if (k <= 0) die("%s: cannot read it back", path);
+        got += k;
+    }
+    pnglen = st.st_size;
+    close(fd);
+    uint32_t man = dc_ext ? dc_ext : dc_wlr;    /* both protocols use the same opcodes */
+    uint32_t src = new_id(T_DCSOURCE, NULL), dev = new_id(T_NONE, NULL);
+    begin(man, 0); put(src); end();                         /* create_data_source */
+    begin(src, 0); put_str("image/png"); end();             /* offer */
+    begin(man, 1); put(dev); put(seat); end();              /* get_data_device */
+    begin(dev, 0); put(src); end();                         /* set_selection */
+    roundtrip();
+
+    /* serve it from the background until something else is copied */
+    pid_t pid = fork();
+    if (pid < 0) die("fork: %s", strerror(errno));
+    if (pid > 0) _exit(0);
+    setsid();
+    signal(SIGPIPE, SIG_IGN);           /* a reader that goes away must not kill us */
+    int nul = open("/dev/null", O_RDWR);
+    for (int f = 0; nul >= 0 && f < 3; f++) if (f != sock) dup2(nul, f);   /* detach, keeping the socket */
+    if (nul > 2 && nul != sock) close(nul);
+    for (;;) read_events();
 }

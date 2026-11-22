@@ -10,7 +10,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
-    lbstools@busylinux wl-clipboard \
+    lbstools@busylinux \
     xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux
 ```
 
@@ -120,10 +120,13 @@ programs just work.
   Wayland itself, with arrow keys, Space, Home and End to turn pages and `q` to
   quit; and `lbsx [-C dir] archive...`, which extracts zip, 7z, rar and tar
   (compressed tars too), refuses entries that would land outside the target,
-  and asks for a zip's password when it needs one; `lbsshot [file | -]`, which
-  freezes the screen, lets you drag a region or click a monitor, and writes a
-  PNG (the pointer is left out). It needs only zlib and the compositor's
-  screencopy and layer-shell support, which dwl has.
+  and asks for a zip's password when it needs one; `lbsshot [-c] [file | -]`,
+  which freezes the screen, lets you drag a region or click a monitor, and
+  writes a PNG (the pointer is left out). With `-c` it also offers the PNG as
+  the clipboard, through the same data-control protocol cclipd watches, and
+  serves it from the background until something else is copied: no
+  `wl-copy` needed. It needs only zlib and the compositor's screencopy,
+  layer-shell and data-control support, all of which dwl has.
 - **cclip**: clipboard history, kept in SQLite. `cclipd` watches the clipboard;
   `cclip list`, `cclip copy ID`.
 

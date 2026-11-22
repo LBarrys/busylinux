@@ -47,7 +47,7 @@ succeed:
 - sysctls: SysRq, `max_map_count`, io_uring off, `mmap_min_addr`
 - no GMP or Readline; syslog works
 - zram swap; the tty logins' realtime and file limits
-- `rc.local` ran; mimalloc in services and the shell
+- mimalloc in services and the shell
 - IPv6 privacy; Landlock and MGLRU are on
 - sched_ext: off at boot; `scx_simple` starts through the `scx` service and stops again
 - the packages are pinned
@@ -58,7 +58,6 @@ succeed:
 - `update.sh` rebuilds two recipes in its build root, leaves no build tools,
   and reports the `.apk-new` it caused; `doctor` warns about it and nothing else
 - the desktop packages install with every library found, and dwl starts headless
-- the weekly update check runs
 - **the power button**: rcK runs, a slow service gets its time to stop, the
   root file system is left clean, and services logged to syslog, not the console
 

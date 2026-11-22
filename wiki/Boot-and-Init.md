@@ -50,8 +50,9 @@
     stays down; see [Network and firewall](Network-and-Firewall.md).
 11. `lo` up.
 12. **TRIM**: a minute later, in the background, `fstrim` on every ext4 mount.
-13. **`/etc/rc.local`**, if executable: your own boot commands. apk keeps your
-    version on upgrades.
+
+Commands of your own at boot belong in a runit service (below): it starts
+after `rcS`, can wait for what it needs, and logs like the others.
 
 ## Services: runit
 
@@ -68,7 +69,7 @@ script, and optionally `log/run`:
 |---|---|
 | `syslogd` | BusyBox syslog, to `/var/log/messages` |
 | `klogd` | kernel messages into syslog |
-| `crond` | BusyBox cron, `/etc/crontabs/root` |
+| `crond` | BusyBox cron; no jobs by default, add yours with `doas crontab -e` |
 | `ntpd` | BusyBox NTP client |
 | `acpid` | the power button powers off (`/etc/acpi/PWRF/00000080`) |
 | `dhcp` | `udhcpc` on the first wired card; see [Network](Network-and-Firewall.md) |

@@ -19,20 +19,26 @@ It also sends no vendor class (`-V ''`). By default udhcpc sends
 
 ### A static address
 
-Stop the DHCP service for good and set the address in `/etc/rc.local`, which
-runs after the firewall is loaded:
+Stop the DHCP service for good:
 
 ```sh
 doas touch /etc/service/dhcp/down
 doas sv down /etc/service/dhcp
 ```
 
+and give the address its own service, `/etc/service/static-net/run` (mode
+755). runit starts it after `rcS` has loaded the firewall, and like `dhcp` it
+keeps the network down while no ruleset is loaded:
+
 ```sh
-# /etc/rc.local
+#!/bin/sh
+exec 2>&1
+[ -n "$(nft list ruleset 2>/dev/null)" ] || exec sleep 30
 ip link set eth0 up
-ip addr add 192.168.1.20/24 dev eth0
-ip route add default via 192.168.1.1
+ip addr replace 192.168.1.20/24 dev eth0
+ip route replace default via 192.168.1.1
 echo 'nameserver 192.168.1.1' > /etc/resolv.conf
+exec sleep 2147483647
 ```
 
 ### Wi-Fi

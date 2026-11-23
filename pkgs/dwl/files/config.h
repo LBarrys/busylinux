@@ -201,7 +201,6 @@ static const Key keys[] = {
 	/* screenshot (lbsutils): drag a region or click an output; saved in ~/Downloads,
 	 * and -c offers it as the clipboard (PNG), where cclipd keeps it */
 	{ MODKEY,                    XKB_KEY_p,           spawn,            SHCMD("d=\"$HOME/Downloads\"; mkdir -p \"$d\" && f=\"$d/$(date +%Y%m%d_%Hh%Mm%Ss)_screenshot.png\" && screenshot -c \"$f\"") },
-	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_p,           spawn,            SHCMD("$HOME/.config/dwl/screenshot.sh screen") },
 
 	{ WLR_MODIFIER_CTRL|WLR_MODIFIER_ALT, XKB_KEY_e,  quit,             {0} },
 

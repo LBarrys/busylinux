@@ -86,7 +86,6 @@ The configuration is `pkgs/dwl/files/config.h`. Change it, then
 | Super+S / Super+Shift+S | send to / show the scratchpad |
 | Super+1, 2 | view a tag; with Shift, move the window there; with Ctrl, toggle |
 | Super+P | `screenshot`: drag a region or click a monitor, Esc or right click cancels; saved in `~/Downloads` and copied to the clipboard |
-| Super+Ctrl+P | `~/.config/dwl/screenshot.sh screen`, your own script |
 | Super+drag | move (left button), resize (right), float (middle) |
 | Ctrl+Alt+E | quit dwl |
 | Ctrl+Alt+F1-F12 | switch console |

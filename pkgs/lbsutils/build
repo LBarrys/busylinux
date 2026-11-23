@@ -1,0 +1,9 @@
+#!/bin/sh -e
+# Four small C programs; libmupdf, libarchive and zlib become dependencies by themselves.
+cc $CFLAGS -O2 -Wall -o file-manager file-manager.c
+cc $CFLAGS -O2 -Wall -o viewer viewer.c -lmupdf -lm -lpthread
+cc $CFLAGS -O2 -Wall -o extract extract.c -larchive
+cc $CFLAGS -O2 -Wall -o screenshot screenshot.c -lz
+for p in file-manager viewer extract screenshot; do
+    install -Dm755 "$p" "$1/usr/bin/$p"
+done

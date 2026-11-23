@@ -1,11 +1,11 @@
-/* lbsfm.c - a tiny terminal file manager (started as a C port of fff-ash)
+/* file-manager.c - a tiny terminal file manager (started as a C port of fff-ash)
  * Plain POSIX C: termios + ANSI escapes, no curses, no dependencies.
  *
- * Build:      cc -O2 -s -o lbsfm lbsfm.c           (Alpine: apk add gcc musl-dev)
- * cd-on-exit: f() { lbsfm "$@"; cd "$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/lbsfm/.last_dir")"; }
- * Env:        LBSFM_HIDDEN=0    start with hidden files hidden (default: shown)
- *             LBSFM_PREVIEW=0   start with the preview pane off
- *             LBSFM_OPENER=cmd  open files with cmd instead of xdg-open/$EDITOR
+ * Build:      cc -O2 -s -o file-manager file-manager.c           (Alpine: apk add gcc musl-dev)
+ * cd-on-exit: f() { file-manager "$@"; cd "$(cat "${XDG_CACHE_HOME:-$HOME/.cache}/file-manager/.last_dir")"; }
+ * Env:        FILE_MANAGER_HIDDEN=0    start with hidden files hidden (default: shown)
+ *             FILE_MANAGER_PREVIEW=0   start with the preview pane off
+ *             FILE_MANAGER_OPENER=cmd  open files with cmd instead of xdg-open/$EDITOR
  */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700
@@ -40,7 +40,7 @@
 
 enum { K_UP = 256, K_DOWN, K_SUP, K_SDOWN, K_LEFT, K_RIGHT, K_HOME, K_END, PGUP, PGDN, ESCKEY };  /* pseudo keys */
 
-/* Colours: the terminal's own 16-colour palette, so lbsfm follows your theme.
+/* Colours: the terminal's own 16-colour palette, so file-manager follows your theme.
  * BASE resets to the terminal's default foreground and background. */
 #define BG     "49"                 /* default background */
 #define FG     "39"                 /* default foreground */
@@ -263,7 +263,7 @@ static void *grow(void *p, int *cap, int n, size_t sz)
 {
     if (n < *cap) return p;
     while (n >= *cap) *cap = *cap * 2 + 32;
-    if (!(p = realloc(p, *cap * sz))) { restore(); fputs("lbsfm: out of memory\n", stderr); exit(1); }
+    if (!(p = realloc(p, *cap * sz))) { restore(); fputs("file-manager: out of memory\n", stderr); exit(1); }
     return p;
 }
 
@@ -506,7 +506,7 @@ static void list_dir(void)
         size_t l = strlen(de->d_name) + 1;
         if (nlen + l > ncap) {
             ncap = (ncap + l) * 2;
-            if (!(names = realloc(names, ncap))) { restore(); fputs("lbsfm: out of memory\n", stderr); exit(1); }
+            if (!(names = realloc(names, ncap))) { restore(); fputs("file-manager: out of memory\n", stderr); exit(1); }
         }
         memcpy(names + nlen, de->d_name, l);
         all = grow(all, &all_cap, nall, sizeof *all);
@@ -1311,7 +1311,7 @@ static int file_is_text(const char *p)
 
 static void open_file(const char *path)
 {
-    const char *op = env("LBSFM_OPENER");
+    const char *op = env("FILE_MANAGER_OPENER");
     char cmd[1024];
 
     /* on a desktop, binaries go to xdg-open; text always goes to $EDITOR */
@@ -1323,7 +1323,7 @@ static void open_file(const char *path)
     }
     if (!op) op = env("VISUAL") ? env("VISUAL") : env("EDITOR") ? env("EDITOR") : "vi";
     snprintf(cmd, sizeof cmd, "%s \"$1\"", op);
-    char *av[] = { "sh", "-c", cmd, "lbsfm", (char *)path, NULL };
+    char *av[] = { "sh", "-c", cmd, "file-manager", (char *)path, NULL };
     run_fg(av);
     relist();
 }
@@ -1481,7 +1481,7 @@ static void do_attributes(void)
 {
     if (!total) return;
     char *av[] = { "sh", "-c", "stat -- \"$1\" 2>/dev/null || ls -ld -- \"$1\"",
-                   "lbsfm", view[pos]->name, NULL };
+                   "file-manager", view[pos]->name, NULL };
     pager_begin();
     flush();
     spawn(av, SP_TTY);
@@ -1491,7 +1491,7 @@ static void do_attributes(void)
 static void show_help(void)
 {
     pager_begin();
-    outs("lbsfm keybindings\n\n"
+    outs("file-manager keybindings\n\n"
          " Down / Up           move               c / C   mark (all) for copy\n"
          " Right / Enter       open / enter dir   m / M   mark (all) for move\n"
          " Left / Backspace    parent directory   t / T   mark (all) for delete\n"
@@ -1515,8 +1515,8 @@ static void quit(void)
     char dir[PATH_MAX], file[PATH_MAX + 16];
     const char *x = env("XDG_CACHE_HOME"), *h = env("HOME");
     FILE *f;
-    if (x) snprintf(dir, sizeof dir, "%s/lbsfm", x);
-    else   snprintf(dir, sizeof dir, "%s/.cache/lbsfm", h ? h : "");
+    if (x) snprintf(dir, sizeof dir, "%s/file-manager", x);
+    else   snprintf(dir, sizeof dir, "%s/.cache/file-manager", h ? h : "");
     snprintf(file, sizeof file, "%s/.last_dir", dir);
     mkdir_p(dir);
     if ((f = fopen(file, "w"))) { fprintf(f, "%s\n", cwd); fclose(f); }
@@ -1613,8 +1613,8 @@ static void handle_input(const unsigned char *b, int n)
 
 int main(int argc, char **argv)
 {
-    const char *pwd = getenv("PWD"), *h = getenv("LBSFM_HIDDEN");
-    const char *pr = getenv("LBSFM_PREVIEW");
+    const char *pwd = getenv("PWD"), *h = getenv("FILE_MANAGER_HIDDEN");
+    const char *pr = getenv("FILE_MANAGER_PREVIEW");
     struct stat a, b;
     struct sigaction sa = { 0 };
 
@@ -1625,18 +1625,18 @@ int main(int argc, char **argv)
     if (pwd && *pwd == '/' && strlen(pwd) < PATH_MAX && !stat(pwd, &a) && !stat(".", &b) &&
         a.st_dev == b.st_dev && a.st_ino == b.st_ino)
         normpath(cwd, "/", pwd);
-    else if (!getcwd(cwd, sizeof cwd)) { fputs("lbsfm: cannot get cwd\n", stderr); return 1; }
+    else if (!getcwd(cwd, sizeof cwd)) { fputs("file-manager: cannot get cwd\n", stderr); return 1; }
 
     if (argc > 1) {
         char p[PATH_MAX];
         if (normpath(p, cwd, argv[1]) || chdir(p)) {
-            fprintf(stderr, "lbsfm: cannot open %s\n", argv[1]);
+            fprintf(stderr, "file-manager: cannot open %s\n", argv[1]);
             return 1;
         }
         strcpy(cwd, p);
     }
     if ((tty = open("/dev/tty", O_RDWR | O_CLOEXEC)) < 0 || tcgetattr(tty, &orig)) {
-        fputs("lbsfm: no terminal\n", stderr);
+        fputs("file-manager: no terminal\n", stderr);
         return 1;
     }
     show_hidden = !h || !*h || !strcmp(h, "1");

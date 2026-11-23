@@ -10,7 +10,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
-    lbstools@busylinux \
+    lbsutils@busylinux \
     xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux
 ```
 
@@ -74,7 +74,7 @@ The configuration is `pkgs/dwl/files/config.h`. Change it, then
 | Super+T | terminal (`footclient`; start `foot --server` in autostart) |
 | Super+Space | launcher (fuzzel) |
 | Super+B | Firefox |
-| Super+M | `lbsfm` file manager in a terminal (from `lbstools`) |
+| Super+M | `file-manager` in a terminal (from `lbsutils`) |
 | Super+V | clipboard history (cclip, picked with fuzzel) |
 | Super+R | restart the bar's status text |
 | Super+Q | close the window |
@@ -85,7 +85,7 @@ The configuration is `pkgs/dwl/files/config.h`. Change it, then
 | Super+F / Super+Shift+F | fullscreen / monocle |
 | Super+S / Super+Shift+S | send to / show the scratchpad |
 | Super+1, 2 | view a tag; with Shift, move the window there; with Ctrl, toggle |
-| Super+P | screenshot with `lbsshot`: drag a region or click a monitor, Esc or right click cancels; saved in `~/Downloads` and copied to the clipboard |
+| Super+P | `screenshot`: drag a region or click a monitor, Esc or right click cancels; saved in `~/Downloads` and copied to the clipboard |
 | Super+Ctrl+P | `~/.config/dwl/screenshot.sh screen`, your own script |
 | Super+drag | move (left button), resize (right), float (middle) |
 | Ctrl+Alt+E | quit dwl |
@@ -114,13 +114,13 @@ programs just work.
   lon=46.7
   ```
 - **pipemixer**: a PipeWire volume mixer in the terminal.
-- **lbstools** (`apk add lbstools@busylinux`): `lbsfm`, a terminal file manager
-  (`LBSFM_HIDDEN`, `LBSFM_PREVIEW` and `LBSFM_OPENER` change its defaults);
-  `lbsviewer -p file.pdf` or `-i image`, a PDF and image viewer that speaks
-  Wayland itself, with arrow keys, Space, Home and End to turn pages and `q` to
-  quit; and `lbsx [-C dir] archive...`, which extracts zip, 7z, rar and tar
+- **lbsutils** (`apk add lbsutils@busylinux`): `file-manager`, a terminal file
+  manager (`FILE_MANAGER_HIDDEN`, `FILE_MANAGER_PREVIEW` and
+  `FILE_MANAGER_OPENER` change its defaults); `viewer -p file.pdf` or
+  `-i image`, a PDF and image viewer that speaks Wayland itself, with arrow keys, Space, Home and End to turn pages and `q` to
+  quit; and `extract [-C dir] archive...`, which extracts zip, 7z, rar and tar
   (compressed tars too), refuses entries that would land outside the target,
-  and asks for a zip's password when it needs one; `lbsshot [-c] [file | -]`,
+  and asks for a zip's password when it needs one; `screenshot [-c] [file | -]`,
   which freezes the screen, lets you drag a region or click a monitor, and
   writes a PNG (the pointer is left out). With `-c` it also offers the PNG as
   the clipboard, through the same data-control protocol cclipd watches, and

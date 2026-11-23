@@ -1,9 +1,9 @@
-/* lbsx - extract zip, 7z, rar and tar archives (extraction only)
+/* extract - extract zip, 7z, rar and tar archives (extraction only)
  *
- * Usage:   lbsx [-v] [-C dir] [-p password] archive...
+ * Usage:   extract [-v] [-C dir] [-p password] archive...
  *            -C dir       extract into dir (created if missing); default: current dir
  *            -v           print each file as it is extracted
- *            -p password  password for encrypted zips; without it lbsx asks on the
+ *            -p password  password for encrypted zips; without it extract asks on the
  *                         terminal (hidden) when one is needed. -p is visible to
  *                         other users in `ps`, so prefer the prompt.
  *
@@ -16,7 +16,7 @@
  *          are refused, since libarchive can't decrypt them.
  *          A file whose data turns out truncated/corrupt is removed, not left half-written.
  *
- * Build:   cc -O2 -s -o lbsx lbsx.c -larchive
+ * Build:   cc -O2 -s -o extract extract.c -larchive
  *          (Alpine: apk add gcc musl-dev libarchive-dev; at runtime only libarchive)
  */
 #include <errno.h>
@@ -84,7 +84,7 @@ static const char *ask(struct archive *a, void *data)
 
 static void usage(int code)
 {
-    fputs("usage: lbsx [-v] [-C dir] [-p password] archive...\n"
+    fputs("usage: extract [-v] [-C dir] [-p password] archive...\n"
           "  -C dir       extract into dir (created if missing)\n"
           "  -v           list files as they are extracted\n"
           "  -p password  password for encrypted zips (default: ask when needed)\n", code ? stderr : stdout);
@@ -153,18 +153,18 @@ static int extract(const char *path, int destfd, int homefd)
     archive_write_disk_set_standard_lookup(out);
 
     if (archive_read_open_filename(in, path, 1 << 16) != ARCHIVE_OK) {
-        fprintf(stderr, "lbsx: %s: %s\n", path, why(in, 1));
+        fprintf(stderr, "extract: %s: %s\n", path, why(in, 1));
         errors = 1;
         goto done;
     }
     if (fchdir(destfd)) {
-        fprintf(stderr, "lbsx: cannot enter destination: %s\n", strerror(errno));
+        fprintf(stderr, "extract: cannot enter destination: %s\n", strerror(errno));
         errors = 1;
         goto done;
     }
     while ((r = archive_read_next_header(in, &e)) != ARCHIVE_EOF) {
         if (r == ARCHIVE_FATAL) {                   /* broken or unsupported archive */
-            fprintf(stderr, "lbsx: %s: %s\n", path, why(in, !entries));
+            fprintf(stderr, "extract: %s: %s\n", path, why(in, !entries));
             errors++;
             break;
         }
@@ -180,18 +180,18 @@ static int extract(const char *path, int destfd, int homefd)
             const char *msg = archive_error_string(in);
             if (r != ARCHIVE_FAILED || (msg && strstr(msg, "link entry")))
                 msg = "symlink in an encrypted zip can't be restored, skipped";
-            fprintf(stderr, "lbsx: %s: %s: %s\n", path, name, msg ? msg : "unreadable entry, skipped");
+            fprintf(stderr, "extract: %s: %s: %s\n", path, name, msg ? msg : "unreadable entry, skipped");
             errors++;
             continue;                               /* the rest of the archive is fine */
         }
         if (archive_entry_is_encrypted(e) && !zip) {   /* stop before creating empty files */
-            fprintf(stderr, "lbsx: %s: encrypted 7z/rar archives are not supported (only zip)\n", path);
+            fprintf(stderr, "extract: %s: encrypted 7z/rar archives are not supported (only zip)\n", path);
             errors++;
             break;
         }
         if (verbose) puts(name);
         if (archive_write_header(out, e) < ARCHIVE_WARN) {   /* e.g. unsafe path: skip it */
-            fprintf(stderr, "lbsx: %s: %s: %s\n", path, name, archive_error_string(out));
+            fprintf(stderr, "extract: %s: %s: %s\n", path, name, archive_error_string(out));
             errors++;
             continue;
         }
@@ -203,14 +203,14 @@ static int extract(const char *path, int destfd, int homefd)
                     : pw_state == PW_WRONG  ? "wrong password (3 tries)"
                     : "wrong password";
             if (!msg) msg = archive_error_string(out);
-            fprintf(stderr, "lbsx: %s: %s: %s\n", path, name, msg ? msg : "read error");
+            fprintf(stderr, "extract: %s: %s: %s\n", path, name, msg ? msg : "read error");
             errors++;
             archive_write_finish_entry(out);
             if (archive_entry_filetype(e) == AE_IFREG) unlink(name);  /* no half-written files */
             break;                                  /* truncated/corrupt: nothing more to read */
         }
         if (archive_write_finish_entry(out) < ARCHIVE_WARN) {
-            fprintf(stderr, "lbsx: %s: %s: %s\n", path, name, archive_error_string(out));
+            fprintf(stderr, "extract: %s: %s: %s\n", path, name, archive_error_string(out));
             errors++;
         }
     }
@@ -248,10 +248,10 @@ int main(int argc, char **argv)
 
     char d[4096];
     snprintf(d, sizeof d, "%s", dest);
-    if (mkdir_p(d)) { fprintf(stderr, "lbsx: %s: %s\n", dest, strerror(errno)); return 1; }
+    if (mkdir_p(d)) { fprintf(stderr, "extract: %s: %s\n", dest, strerror(errno)); return 1; }
     int destfd = open(dest, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     int homefd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (destfd < 0 || homefd < 0) { fprintf(stderr, "lbsx: %s: %s\n", dest, strerror(errno)); return 1; }
+    if (destfd < 0 || homefd < 0) { fprintf(stderr, "extract: %s: %s\n", dest, strerror(errno)); return 1; }
 
     for (; i < argc; i++) errors += extract(argv[i], destfd, homefd);
     return errors ? 1 : 0;

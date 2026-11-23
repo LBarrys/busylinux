@@ -1,0 +1,6 @@
+version=1
+release=0
+desc="file-manager (terminal), viewer (PDF/image, Wayland), extract (archives), screenshot (Wayland)"
+url=https://github.com/LBarrys/busylinux
+license=MIT
+makedepends="build-base mupdf-dev libarchive-dev zlib-dev"

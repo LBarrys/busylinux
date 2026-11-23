@@ -1,0 +1,20 @@
+#!/bin/sh -e
+# The GTK theme as it came, with its icons and cursors pointed at the two forks.
+s=$1/usr/share
+mkdir -p "$s/themes" "$s/icons"
+tar -xzof Colloid-Green-Dark-Gruvbox.tar.gz -C "$s/themes"
+sed -i 's/^IconTheme=.*/IconTheme=Papirus-Gruvbox-Dark/; s/^CursorTheme=.*/CursorTheme=Breeze-Gruvbox/' \
+    "$s/themes/Colloid-Green-Dark-Gruvbox/index.theme"
+
+# Breeze Light's cursors in 24, 36 and 48 px, recoloured; see recolour.py.
+python3 -I recolour.py cursors breeze/cursors/Breeze_Light/Breeze_Light "$s/icons/Breeze-Gruvbox"
+
+# Papirus and Papirus-Dark, recoloured, without Papirus-Light, the other folder
+# colours and the sizes other than 16, 22, 32 and 48.
+cp -a papirus/Papirus "$s/icons/Papirus-Gruvbox"
+cp -a papirus/Papirus-Dark "$s/icons/Papirus-Gruvbox-Dark"
+python3 -I recolour.py icons "$s/icons/Papirus-Gruvbox" "$s/icons/Papirus-Gruvbox-Dark"
+
+for v in 3 4; do
+    install -Dm644 settings.ini "$1/etc/xdg/gtk-$v.0/settings.ini"
+done

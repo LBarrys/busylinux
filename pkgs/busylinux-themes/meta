@@ -1,0 +1,6 @@
+version=1
+release=0
+desc="Colloid Gruvbox GTK theme, with Breeze Light's cursors and Papirus's icons recoloured to match and trimmed"
+url=https://github.com/LBarrys/busylinux
+license="GPL-3.0-only AND GPL-2.0-or-later"
+makedepends="python3"

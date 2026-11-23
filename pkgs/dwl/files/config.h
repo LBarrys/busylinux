@@ -22,9 +22,9 @@ static const char *fonts[]                 = {"Fira Code:style=Medium:pixelsize=
 static const float rootcolor[]             = COLOR(0x000000ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
-/* cursor theme for dwl itself; also exported as XCURSOR_THEME/XCURSOR_SIZE
- * so programs started from dwl use the same one */
-static const char *cursor_theme            = "Breeze_Light";
+/* cursor theme for dwl itself (busylinux-themes); also exported as
+ * XCURSOR_THEME/XCURSOR_SIZE so programs started from dwl use the same one */
+static const char *cursor_theme            = "Breeze-Gruvbox";
 static const char cursor_size[]            = "24"; /* must be a valid integer */
 /* bar and window border colours (gruvbox) */
 static uint32_t colors[][3]                = {

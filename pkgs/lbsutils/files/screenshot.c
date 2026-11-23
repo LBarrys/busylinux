@@ -1,13 +1,13 @@
-/* lbsshot - screenshot tool for Wayland: grim + slurp in one
+/* screenshot - screenshot tool for Wayland: grim + slurp in one
  *
- * Usage:   lbsshot [-c] [file | -]
+ * Usage:   screenshot [-c] [file | -]
  *            Drag to select a region, or click to take a whole output.
  *            Esc or right click cancels.
- *            -c: also put the PNG on the clipboard. lbsshot then waits in the
+ *            -c: also put the PNG on the clipboard. screenshot then waits in the
  *                background, serving it, until something else is copied.
  *            file: the PNG to write; "-" writes to stdout.
  *            Default: $XDG_PICTURES_DIR, ~/Pictures or ., named
- *            YYYYmmdd_HHhMMmSSs_lbsshot.png
+ *            YYYYmmdd_HHhMMmSSs_screenshot.png
  *
  * The screen is captured first and you select on that frozen image, so the
  * result appears the moment you let go, and the selection overlay can never
@@ -18,7 +18,7 @@
  * Wayfire, labwc, ...), plus ext- or wlr-data-control for -c. Only
  * dependency: zlib, for PNG.
  *
- * Build:   cc -O2 -s -o lbsshot lbsshot.c -lz      (Alpine: apk add gcc musl-dev zlib-dev)
+ * Build:   cc -O2 -s -o screenshot screenshot.c -lz      (Alpine: apk add gcc musl-dev zlib-dev)
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -49,7 +49,7 @@ static void die(const char *fmt, ...)
     va_list ap;
     if (made) unlink(made);
     va_start(ap, fmt);
-    fputs("lbsshot: ", stderr);
+    fputs("screenshot: ", stderr);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
     va_end(ap);
@@ -148,7 +148,7 @@ static const char *arg_str(const uint32_t *a, size_t i, size_t *next)
 static void *shm_buffer(int w, int h, int stride, uint32_t fmt, uint32_t *id, int type, void *ptr, size_t *size)
 {
     extern uint32_t shm;
-    int fd = memfd_create("lbsshot", MFD_CLOEXEC);
+    int fd = memfd_create("screenshot", MFD_CLOEXEC);
     *size = (size_t)stride * h;
     if (fd < 0 || ftruncate(fd, *size) < 0) die("cannot allocate a screen buffer");
     void *p = mmap(NULL, *size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -657,10 +657,10 @@ static void write_png(const uint32_t *img, int w, int h)
 
 static void usage(int code)
 {
-    fputs("usage: lbsshot [-c] [file | -]\n"
+    fputs("usage: screenshot [-c] [file | -]\n"
           "  drag to select a region, click to take a whole output; Esc or right click cancels\n"
           "  -c   also put the PNG on the clipboard (served in the background until replaced)\n"
-          "  file defaults to ~/Pictures/YYYYmmdd_HHhMMmSSs_lbsshot.png; - writes to stdout\n",
+          "  file defaults to ~/Pictures/YYYYmmdd_HHhMMmSSs_screenshot.png; - writes to stdout\n",
           code ? stderr : stdout);
     exit(code);
 }
@@ -672,7 +672,7 @@ static const char *default_path(void)
     const char *d = getenv("XDG_PICTURES_DIR"), *h = getenv("HOME");
     struct stat st;
     time_t t = time(NULL);
-    strftime(name, sizeof name, "%Y%m%d_%Hh%Mm%Ss_lbsshot.png", localtime(&t));
+    strftime(name, sizeof name, "%Y%m%d_%Hh%Mm%Ss_screenshot.png", localtime(&t));
     if (d && *d) snprintf(dir, sizeof dir, "%s", d);
     else if (h && snprintf(dir, sizeof dir, "%s/Pictures", h) > 0 && !stat(dir, &st) && S_ISDIR(st.st_mode)) {}
     else snprintf(dir, sizeof dir, ".");

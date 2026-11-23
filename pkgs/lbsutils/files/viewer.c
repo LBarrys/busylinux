@@ -1,7 +1,7 @@
-/* lbsviewer - a minimal PDF/image viewer for Wayland; MuPDF is its only dependency
+/* viewer - a minimal PDF/image viewer for Wayland; MuPDF is its only dependency
  *
- * Usage:   lbsviewer --image | -i path/to/image     PNG JPEG GIF BMP TIFF PNM PSD JPEG2000 JXR JBIG2
- *          lbsviewer --pdf   | -p path/to/file.pdf
+ * Usage:   viewer --image | -i path/to/image     PNG JPEG GIF BMP TIFF PNM PSD JPEG2000 JXR JBIG2
+ *          viewer --pdf   | -p path/to/file.pdf
  *
  * Keys:    q / Esc                         quit
  *          Right Down Space PageDown       next page (PDF)
@@ -12,10 +12,10 @@
  * libwayland) and reads key names from the compositor's keymap itself (no
  * xkbcommon). Decoding and rendering is done by the system's MuPDF library.
  *
- * Colours: the background is taken from the terminal lbsviewer is started in
+ * Colours: the background is taken from the terminal viewer is started in
  *          (asked with the standard OSC 11 query); without one it is #282828.
  *
- * Build:   cc -O2 -s -o lbsviewer lbsviewer.c -lmupdf -lm -lpthread
+ * Build:   cc -O2 -s -o viewer viewer.c -lmupdf -lm -lpthread
  *          (Alpine: apk add gcc musl-dev mupdf-dev; at runtime only mupdf-libs is needed)
  */
 #define _GNU_SOURCE
@@ -53,7 +53,7 @@ static void die(const char *fmt, ...)
     va_list ap;
     if (tq_fd >= 0) tcsetattr(tq_fd, TCSANOW, &tq_old);
     va_start(ap, fmt);
-    fputs("lbsviewer: ", stderr);
+    fputs("viewer: ", stderr);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
     va_end(ap);
@@ -390,7 +390,7 @@ static void natural_size(float *w, float *h)
         b = fz_bound_page(ctx, p);
     }
     fz_always(ctx) fz_drop_page(ctx, p);
-    fz_catch(ctx) fprintf(stderr, "lbsviewer: %s\n", fz_caught_message(ctx));
+    fz_catch(ctx) fprintf(stderr, "viewer: %s\n", fz_caught_message(ctx));
     *w = (b.x1 - b.x0) * 96 / 72;
     *h = (b.y1 - b.y0) * 96 / 72;
 }
@@ -459,7 +459,7 @@ static fz_pixmap *render_page(int pg, int w, int h)
     fz_catch(ctx) {
         fz_drop_pixmap(ctx, pm);
         pm = NULL;
-        fprintf(stderr, "lbsviewer: page %d: %s\n", pg + 1, fz_caught_message(ctx));
+        fprintf(stderr, "viewer: page %d: %s\n", pg + 1, fz_caught_message(ctx));
     }
     return pm;
 }
@@ -558,7 +558,7 @@ static struct shmbuf *get_buffer(int w, int h)
         if (sb->w == w && sb->h == h) return sb;
         free_buffer(sb);
     }
-    int stride = w * 4, fd = memfd_create("lbsviewer", MFD_CLOEXEC);
+    int stride = w * 4, fd = memfd_create("viewer", MFD_CLOEXEC);
     if (!(sb = calloc(1, sizeof *sb)) || fd < 0) die("out of memory");
     sb->size = (size_t)stride * h;
     sb->w = w;
@@ -797,8 +797,8 @@ static void sync_roundtrip(void)
 
 static void usage(int code)
 {
-    fputs("usage: lbsviewer --image|-i path/to/image\n"
-          "       lbsviewer --pdf|-p path/to/file.pdf\n", code ? stderr : stdout);
+    fputs("usage: viewer --image|-i path/to/image\n"
+          "       viewer --pdf|-p path/to/file.pdf\n", code ? stderr : stdout);
     exit(code);
 }
 
@@ -842,7 +842,7 @@ int main(int argc, char **argv)
     begin(wm, 2); put(xsurf); put(surface); end();          /* get_xdg_surface */
     toplevel = new_id();
     begin(xsurf, 1); put(toplevel); end();                  /* get_toplevel */
-    begin(toplevel, 3); put_str("lbsviewer"); end();        /* set_app_id */
+    begin(toplevel, 3); put_str("viewer"); end();        /* set_app_id */
     set_title();
     /* Tiling compositors (sway, Hyprland, ...) float a window whose minimum and
      * maximum sizes are equal, so report a fixed size until the first frame. */

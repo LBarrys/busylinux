@@ -144,3 +144,4 @@ See [Updating](Updating.md) for how that works.
 | `claude-code` | not in Alpine: Anthropic's own musl build from the npm registry, unstripped (stripping cuts the program off its Bun runtime), updated by the recipe and not by itself |
 | `wgcf` | newer than Alpine's |
 | `busylinux-fonts` | fonts Alpine lacks or packages older, with the fontconfig setup that ties them together |
+| `busylinux-themes` | the Colloid Gruvbox GTK theme, and forks of Breeze Light's cursors and Papirus's icons recoloured to match and trimmed by `files/recolour.py` |

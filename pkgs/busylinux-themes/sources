@@ -1,0 +1,3 @@
+# Only cursors/Breeze_Light is used from Breeze.
+https://download.kde.org/stable/plasma/6.8.3/breeze-6.8.3.tar.xz breeze
+git+https://github.com/PapirusDevelopmentTeam/papirus-icon-theme#20260801 papirus

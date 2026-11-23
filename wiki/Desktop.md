@@ -11,7 +11,8 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
     lbsutils@busylinux \
-    xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux
+    xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux \
+    busylinux-themes@busylinux
 ```
 
 | | |
@@ -24,6 +25,7 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
 | `dwl` and the other `@busylinux` packages | built from this repository (below) |
 | `xdg-desktop-portal*` | file pickers and screen sharing for Firefox and Flatpak |
 | `busylinux-fonts` | the fonts and their fontconfig setup (see [Fonts](#fonts)) |
+| `busylinux-themes` | the GTK theme, icons and cursors (see [Themes](#themes)) |
 
 The installer already put your user in `video input audio seat`.
 
@@ -222,3 +224,44 @@ about 440 MB installed, nearly all of it Sarasa's five weights.
 
 Fonts inside the Arch tree are separate; see
 [Steam and games](Steam-and-Games.md#fonts).
+
+## Themes
+
+`busylinux-themes@busylinux` installs one look for GTK programs and the
+pointer, all in the Gruvbox colours that dwl's bar and borders use:
+
+| Theme | What |
+|---|---|
+| **Colloid-Green-Dark-Gruvbox** | the GTK 3 and 4 theme, as it came |
+| **Papirus-Gruvbox-Dark** (and **Papirus-Gruvbox**, which it builds on) | Papirus's icons, recoloured |
+| **Breeze-Gruvbox** | Breeze Light's cursors, recoloured |
+
+The two forks are made at build time by `pkgs/busylinux-themes/files/recolour.py`
+from pinned upstream releases:
+
+- **Recoloured**: Papirus's blue folders take the theme's green
+  (`#98971a`); its red, green, blue, orange and yellow, its greys and the
+  symbolic icons' text colour move to their Gruvbox counterparts. The cursors
+  are cream (`#ebdbb2`) with a dark outline (`#1d2021`) instead of white and
+  black, and their accents (the busy spinner, the help and copy badges) are
+  Gruvbox's too.
+- **Trimmed**: Papirus-Light, the other 24 folder colours, and the sizes
+  other than 16, 22, 32 and 48 px are left out. The 24 px set is only the
+  22 px icons with a margin, so programs that ask for 24 get the 22 px ones
+  scaled; HiDPI uses the same SVGs. The cursors keep 24, 36 and 48 px (1x,
+  1.5x and 2x) of eleven sizes, and drop the SVG cursors that nothing here reads.
+  Papirus's files go from 113 MB to 61 MB, the cursors' from 15 MB to 3 MB.
+
+dwl uses Breeze-Gruvbox itself and exports it as `XCURSOR_THEME`.
+`/etc/xdg/gtk-3.0/settings.ini` and `/etc/xdg/gtk-4.0/settings.ini` make all three
+the GTK defaults. Your own `~/.config/gtk-3.0/settings.ini` and
+`~/.config/gtk-4.0/settings.ini` override them, so remove the theme lines there
+if they name the old themes. Programs built on libadwaita ignore GTK themes
+and keep their own look.
+
+Check it:
+
+```sh
+grep -h name /etc/xdg/gtk-3.0/settings.ini
+ls /usr/share/icons/Breeze-Gruvbox/cursors | wc -l    # 115
+```

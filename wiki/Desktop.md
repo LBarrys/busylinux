@@ -210,6 +210,10 @@ The setup:
   turned on for everything they would make every `1/2` and date a fraction,
   raise punctuation to capital height in lowercase text, or turn all digits
   (and with `sups`, letters) into small raised or lowered ones.
+- **Fira Code's variants**: `cv01` (a), `cv06` (i), `ss01` (r), `cv11` (1),
+  `cv18` (%), `cv31` (parentheses), `ss02` (`<=` `>=`), `cv24` (`/=`), `cv25`
+  (`.-`), `cv26` (`:-`), `cv32` (`.=`) and `ss07` (`=~` `!~`), read by the same
+  programs as Inter's.
 - **Rendering**: antialiasing, slight hinting, RGB subpixel order.
 
 Check it:

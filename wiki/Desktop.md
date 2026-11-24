@@ -214,6 +214,10 @@ The setup:
   `cv18` (%), `cv31` (parentheses), `ss02` (`<=` `>=`), `cv24` (`/=`), `cv25`
   (`.-`), `cv26` (`:-`), `cv32` (`.=`) and `ss07` (`=~` `!~`), read by the same
   programs as Inter's.
+- **Sarasa Gothic's `halt`**: half-width CJK punctuation (`「」、。`), with
+  kana and kanji at full width. `palt` (proportional kana) is left off: it
+  halves the punctuation too, and both would halve it to nothing. Sarasa Mono
+  keeps its grid.
 - **Rendering**: antialiasing, slight hinting, RGB subpixel order.
 
 Check it:

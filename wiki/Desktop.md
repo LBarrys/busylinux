@@ -201,6 +201,15 @@ The setup:
   through to OpenMoji and everything else comes from the fonts above it. The
   lists are strong preferences, so a font claiming a language (Unifont claims
   nearly all) cannot jump ahead of them.
+- **Inter's features**: `dlig` (arrows from `->` and the like), `zero`
+  (slashed zero), `ss01` (open digits), `ss02` (I, l and 1 told apart), `ss07`
+  and `ss08` (square punctuation and quotes), with `calt` and `ccmp`, which are
+  on anyway. GTK programs (through Pango) and foot read them from fontconfig;
+  Firefox and Chromium do not. `frac`, `case`, `sups`, `subs`, `sinf`, `numr`
+  and `dnom` are left off: they are meant for a selected run of text, and
+  turned on for everything they would make every `1/2` and date a fraction,
+  raise punctuation to capital height in lowercase text, or turn all digits
+  (and with `sups`, letters) into small raised or lowered ones.
 - **Rendering**: antialiasing, slight hinting, RGB subpixel order.
 
 Check it:

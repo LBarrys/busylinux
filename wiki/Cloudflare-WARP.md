@@ -62,7 +62,8 @@ installed for that run alone.
 4. Saves `/etc/resolv.conf`, points it at Cloudflare's resolvers, and makes it
    immutable (`chattr +i`), so a DHCP renewal cannot put your ISP's DNS back.
 
-`warp off` reverses all of it and restores `resolv.conf`. `warp status` shows
+`warp off` reverses all of it and restores `resolv.conf`, also after a reboot
+left WARP's DNS locked in place (`doctor` warns then). `warp status` shows
 `wg show wgcf`.
 
 ## Limits

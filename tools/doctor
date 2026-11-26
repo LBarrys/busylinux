@@ -43,6 +43,11 @@ for v in .busylinux-build .warp-setup; do
     if grep -q "^$v" /etc/apk/world; then warn "$v is left in /etc/apk/world: apk del $v"; fi
 done
 
+# WARP down, but its locked resolv.conf left in place (a reboot with WARP on).
+if [ -f /etc/resolv.conf.pre-warp ] && ! ip link show wgcf > /dev/null 2>&1; then
+    warn "WARP is down but its DNS stays in /etc/resolv.conf: warp off"
+fi
+
 # New versions apk put beside files you changed.
 new=$(find /etc -name '*.apk-new' 2>/dev/null)
 for f in $new; do warn "$f: a new version beside your edited ${f%.apk-new}; merge or delete it"; done

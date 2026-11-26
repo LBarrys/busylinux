@@ -89,22 +89,28 @@ on() {
 }
 
 off() {
-    if ! ip link show "$IFACE" > /dev/null 2>&1; then
-        echo "WARP is not up."; return
+    if ip link show "$IFACE" > /dev/null 2>&1; then
+        ep=$(endpoint)
+        # Deleting the interface takes its routes; the peer's route is on the card.
+        ip link del "$IFACE"
+        case $ep in
+            ''|'(none)') ;;
+            *:*) ip -6 route del "$ep/128" 2>/dev/null || : ;;
+            *)   ip -4 route del "$ep/32" 2>/dev/null || : ;;
+        esac
+        echo "WARP is down."
+    else
+        echo "WARP is not up."
     fi
-    ep=$(endpoint)
-    # Deleting the interface takes its routes; the peer's route is on the card.
-    ip link del "$IFACE"
-    case $ep in
-        ''|'(none)') ;;
-        *:*) ip -6 route del "$ep/128" 2>/dev/null || : ;;
-        *)   ip -4 route del "$ep/32" 2>/dev/null || : ;;
-    esac
-    chattr -i /etc/resolv.conf 2>/dev/null || :
-    if [ -f /etc/resolv.conf.pre-warp ]; then mv /etc/resolv.conf.pre-warp /etc/resolv.conf; fi
-    # udhcpc's copies that could not replace the locked file.
-    rm -f /etc/resolv.conf.[0-9]*
-    echo "WARP is down."
+    # Also when the interface is gone already, as after a reboot with WARP
+    # on: the locked Cloudflare resolv.conf would otherwise stay for good.
+    if [ -f /etc/resolv.conf.pre-warp ]; then
+        chattr -i /etc/resolv.conf 2>/dev/null || :
+        mv /etc/resolv.conf.pre-warp /etc/resolv.conf
+        # udhcpc's copies that could not replace the locked file.
+        rm -f /etc/resolv.conf.[0-9]*
+        echo "DNS restored from before WARP."
+    fi
 }
 
 case ${1:-} in

@@ -60,6 +60,17 @@ if pidof mdevd > /dev/null; then ok "mdevd runs"; else warn "mdevd does not run"
 for c in mount umount; do
     command -v "$c" > /dev/null || warn "$c is missing, so boot would fail: ln -sf /bin/busybox /bin/$c"
 done
+# doas is the only setuid program; the Arch tree for Steam keeps its own.
+suid=$(find / -xdev -path "${ARCH_ROOT:-/opt/root.x86_64}" -prune -o \
+    -type f -perm -4000 ! -path /usr/bin/doas -print 2>/dev/null)
+for f in $suid; do
+    warn "$f ($(apk info -qW "$f" 2>/dev/null || echo 'no package')) is setuid: see wiki/Desktop.md#install"
+done
+[ -n "$suid" ] || ok "doas is the only setuid program"
+# JACK2 provides libjack too, with a higher version, and wins unless named.
+if [ -n "$(ver jack)" ] && [ -n "$(ver pipewire)" ]; then
+    warn "JACK2 replaced pipewire-jack, so JACK programs miss PipeWire: apk add pipewire-jack"
+fi
 if [ -n "$(ver busybox-runit)" ] && [ -n "$(ver runit)" ]; then
     warn "runit is installed beside busybox-runit, which replaces it: apk del runit"
 fi

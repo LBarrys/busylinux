@@ -8,11 +8,12 @@ No systemd, elogind, logind, polkit or udev.
 ```sh
 doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
     mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati vulkan-loader \
-    dbus seatd pipewire pipewire-alsa pipewire-pulse wireplumber \
+    dbus seatd pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
     dwl@busylinux gammastep@busylinux pipemixer@busylinux cclip@busylinux foot \
-    lbsutils@busylinux \
-    xdg-desktop-portal xdg-desktop-portal-gtk busylinux-fonts@busylinux \
-    busylinux-themes@busylinux
+    lbsutils@busylinux wlr-randr \
+    xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr \
+    busylinux-fonts@busylinux busylinux-themes@busylinux \
+    '!dbus-daemon-launch-helper' '!xdg-document-portal'
 ```
 
 | | |
@@ -21,11 +22,26 @@ doas apk add linux-firmware-amdgpu libudev-zero@busylinux \
 | `libudev-zero@busylinux` | libudev for wlroots, libinput, Mesa, PipeWire (below) |
 | `mesa-*`, `vulkan-loader` | OpenGL, VA-API video decoding, RADV Vulkan |
 | `dbus`, `seatd` | the system bus and seat access; their services start by themselves within a minute |
-| `pipewire*`, `wireplumber` | sound, with ALSA and PulseAudio programs too |
+| `pipewire*`, `wireplumber` | sound, with ALSA, PulseAudio and JACK programs too |
 | `dwl` and the other `@busylinux` packages | built from this repository (below) |
-| `xdg-desktop-portal*` | file pickers and screen sharing for Firefox and Flatpak |
+| `wlr-randr` | monitor modes and layout (see [dwl](#dwl)) |
+| `xdg-desktop-portal*` | file pickers (`-gtk`) and screen sharing (`-wlr`) for Firefox |
+| `!dbus-daemon-launch-helper`, `!xdg-document-portal` | keep two setuid helpers out (below) |
 | `busylinux-fonts` | the fonts and their fontconfig setup (see [Fonts](#fonts)) |
 | `busylinux-themes` | the GTK theme, icons and cursors (see [Themes](#themes)) |
+
+`pipewire-jack` is named, not left to apk: JACK2's `jack` provides
+`libjack.so.0` too, with a higher version, so an upgrade can swap it in and
+leave JACK programs (portaudio, fluidsynth) talking to a `jackd` that never
+runs. `doctor` warns when that happens.
+
+`dbus` and `xdg-desktop-portal` pull in two setuid root helpers through
+`install_if`, so `apk del` alone does not keep them away; the `!` entries in
+the world file do. `dbus-daemon-launch-helper` starts system-bus services on
+demand, and this system has none. `xdg-document-portal` shares files with
+sandboxed (Flatpak) programs through FUSE and needs `fuse3`'s setuid
+`fusermount3`. Without them `doas` stays the only setuid program; `doctor`
+warns about any other. To use Flatpak, `doas apk del '!xdg-document-portal'`.
 
 The installer already put your user in `video input audio seat`.
 

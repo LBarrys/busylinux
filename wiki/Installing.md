@@ -91,6 +91,7 @@ Log in on tty1. A few things to do once:
 
 ```sh
 doas apk add linux-firmware-amdgpu   # the GPU needs its firmware for anything past the console
+doas apk add linux-firmware-rtl_nic  # the RTL8125's PHY fixes; the card works without, r8169 warns
 doas tools/doctor                    # from a checkout of this repository
 ```
 

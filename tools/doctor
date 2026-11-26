@@ -19,8 +19,17 @@ ver()  { apk list --installed "$1" 2>/dev/null | sed -n "s/^$1-\([0-9][^ ]*\) .*
 
 # Kernel: the one running against the one installed.
 k=$(ver linux-busylinux)
+# Each build signs its modules with a key of its own, which only that build's
+# kernel trusts: modules installed since boot, even of the same version, are
+# refused (ctime: when they were written here, whatever the package says).
+booted=$(awk '/^btime/ { print $2 }' /proc/stat)
+installed=$(stat -c %Z "/lib/modules/$(uname -r)/modules.dep" 2>/dev/null || echo 0)
 case $(uname -r) in
-    "${k%-r*}"-*) ok "kernel $(uname -r) is the installed one" ;;
+    "${k%-r*}"-*) if [ "$installed" -gt "$booted" ]; then
+                      warn "linux-busylinux $k was installed after boot; the running kernel refuses its modules: reboot"
+                  else
+                      ok "kernel $(uname -r) is the installed one"
+                  fi ;;
     *)            warn "kernel $(uname -r) runs, linux-busylinux $k is installed: reboot" ;;
 esac
 

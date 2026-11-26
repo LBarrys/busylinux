@@ -37,7 +37,7 @@ on() {
         PROFILE=$CONF
     fi
     modprobe wireguard 2>/dev/null || :
-    [ -d /sys/module/wireguard ] || die "the wireguard module did not load"
+    [ -d /sys/module/wireguard ] || die "the wireguard module did not load (after a kernel update: reboot)"
 
     # wg reads only the [Interface] keys it knows and the peers.
     conf=$(mktemp)

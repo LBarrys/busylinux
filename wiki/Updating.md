@@ -46,7 +46,10 @@ doas tools/update.sh --all             # all of them
 4. Lists any `.apk-new` files (below).
 
 When the recipe's version is the one installed, the new package gets the
-next release number, so apk sees it as newer. A new kernel needs a reboot. `doctor` says so until you do.
+next release number, so apk sees it as newer. A new kernel needs a reboot, even a
+rebuild of the same version: each build signs its modules with a key of its own,
+so until then the running kernel refuses any module it has not loaded yet
+(`wireguard` for `warp on`, for one). `doctor` says so until you do.
 
 ## `.apk-new` files
 

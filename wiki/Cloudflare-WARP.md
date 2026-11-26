@@ -4,8 +4,8 @@ Cloudflare's own WARP client needs glibc and policy routing (`ip rule`
 with fwmarks), and the kernel leaves policy routing out. But WARP is plain
 WireGuard, which the kernel has. So BusyLinux uses:
 
-- **wgcf** (`pkgs/wgcf`, newer than Alpine's) to register an account and
-  write a WireGuard profile, once;
+- **`tools/warp-setup`**, a short `sh` script, to register an account and
+  write a WireGuard profile, once, with Cloudflare's API over BusyBox `wget`;
 - **`tools/warp`**, a short `sh` script, to bring the tunnel up and down
   with `wg` and BusyBox `ip` alone. No bash `wg-quick`, no daemon.
 
@@ -20,13 +20,23 @@ doas warp off
 
 `warp-setup`:
 
-1. installs this repository's `wgcf` for the run only (building it with
-   `update.sh` if the local repository lacks it) and `wireguard-tools-wg`
-   (`wg` alone, without `wg-quick` and bash);
-2. registers a free account (`/etc/wireguard/wgcf-account.toml`) unless one exists;
-3. writes `/etc/wireguard/wgcf-profile.conf`, mode 600;
-4. installs `tools/warp` as `/usr/sbin/warp`;
-5. removes `wgcf` again.
+1. installs `wireguard-tools-wg` (`wg` alone, without `wg-quick` and bash);
+2. registers a free account unless one exists: a new WireGuard key, one
+   `POST` to `api.cloudflareclient.com`, and the reply kept in
+   `/etc/wireguard/wgcf-account.toml`;
+3. asks the API for the account's peer and addresses, and writes
+   `/etc/wireguard/wgcf-profile.conf`, mode 600;
+4. installs `tools/warp` as `/usr/sbin/warp`.
+
+The files keep wgcf's names and format, which BusyLinux used before: an
+account made with wgcf carries over, and `wgcf` still reads these.
+
+The API is Cloudflare's app API, which is undocumented. Cloudflare turns away
+clients that do not look like its Android app, so `warp-setup` sends the
+app's version and headers, as wgcf does. If registering starts failing, take
+the new values from wgcf's `cloudflare/api.go` (`ApiVersion` and
+`DefaultHeaders`) and set `API`, `VERSION` and `AGENT` at the top of
+`tools/warp-setup`.
 
 ### WARP+
 
@@ -35,7 +45,8 @@ tools/warp-setup YOUR-LICENSE-KEY
 ```
 
 This binds the key to the account and writes the profile anew. Run it while
-WARP is off.
+WARP is off. BusyBox `wget` cannot send the `PUT` this takes, so `curl` is
+installed for that run alone.
 
 ## What `warp on` does
 

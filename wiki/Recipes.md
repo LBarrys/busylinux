@@ -142,6 +142,5 @@ See [Updating](Updating.md) for how that works.
 | `pipemixer`, `cclip` | not in Alpine |
 | `lbsutils` | this repository's own programs: `file-manager` (terminal file manager, libc only), `viewer` (PDF and image viewer speaking Wayland directly, MuPDF only), `extract` (zip, 7z, rar and tar extractor, libarchive only) and `screenshot` (screenshots, zlib only) |
 | `claude-code` | not in Alpine: Anthropic's own musl build from the npm registry, unstripped (stripping cuts the program off its Bun runtime), updated by the recipe and not by itself |
-| `wgcf` | newer than Alpine's |
 | `busylinux-fonts` | fonts Alpine lacks or packages older, with the fontconfig setup that ties them together |
 | `busylinux-themes` | the Colloid Gruvbox GTK theme, and forks of Breeze Light's cursors and Papirus's icons recoloured to match and trimmed by `files/recolour.py` |

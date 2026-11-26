@@ -1,47 +1,94 @@
 #!/bin/sh
-# Sets up Cloudflare WARP once: tools, account, profile and the warp command.
+# Sets up Cloudflare WARP once: account, profile and the warp command.
 set -eu
 
 usage() {
     cat <<'EOT'
     warp-setup [WARP+ LICENSE KEY]
 
-Registers a free WARP account with wgcf and writes its WireGuard profile to
-/etc/wireguard (mode 600), then installs tools/warp as /usr/sbin/warp. warp
-needs only wg (wireguard-tools-wg) beside BusyBox's ip; wgcf is installed for
-this run alone. Run again to make the profile anew from the same account,
-for example with a license key. Through doas when not root.
+Registers a free WARP account with Cloudflare's API and writes its WireGuard
+profile to /etc/wireguard (mode 600), then installs tools/warp as
+/usr/sbin/warp. It needs only wg (wireguard-tools-wg) and BusyBox's wget;
+a license key also needs curl, installed for that run alone. Run again to
+make the profile anew from the same account, for example with a license key.
+Through doas when not root.
 Afterwards: doas warp on.
 EOT
 }
 
 DIR=/etc/wireguard
+ACCOUNT=$DIR/wgcf-account.toml   # wgcf's names, so its accounts carry over
+PROFILE=$DIR/wgcf-profile.conf
 TOOLS=$(cd "$(dirname "$0")" && pwd -P)
 die() { printf 'warp-setup: %s\n' "$*" >&2; exit 1; }
+
+# The Android app's API version and headers, as wgcf sends them; Cloudflare
+# turns other clients away. Update from wgcf's cloudflare/api.go if it does.
+API=https://api.cloudflareclient.com/v0a5641
+VERSION=a-6.38.9-5641
+AGENT='1.1.1.1/6.38.9-5641 (Android 16.0.0)'
+
+# api PATH [JSON]: GET, or POST with JSON, authorised once an account exists.
+api() {
+    wget -q -O - -U "$AGENT" --header "CF-Client-Version: $VERSION" \
+        ${token:+--header "Authorization: Bearer $token"} \
+        ${2:+--header 'Content-Type: application/json; charset=UTF-8' --post-data "$2"} \
+        "$API/$1" || die "Cloudflare's API refused $1"
+}
+# json KEY: the first "KEY":"value" in the reply on stdin (one line of JSON).
+json() { sed -n "s/^[^\"]*\"$1\":\"\([^\"]*\)\".*/\1/p; s/.*[,{]\"$1\":\"\([^\"]*\)\".*/\1/p" | head -n1; }
+# toml KEY: a value from the account file.
+toml() { sed -n "s/^$1 *= *[\"']\(.*\)[\"']\$/\1/p" "$ACCOUNT"; }
 
 case ${1:-} in -h|--help) usage; exit 0 ;; esac
 [ "$(id -u)" = 0 ] || exec doas "$TOOLS/warp-setup" "$@"
 if ip link show wgcf > /dev/null 2>&1; then die "WARP is up; warp off first"; fi
-
-# This repository's wgcf (Alpine's is older), only for this run; built here if
-# the repository lacks it.
-trap 'apk del -q .warp-setup 2>/dev/null || :; apk del -q wgcf 2>/dev/null || :' EXIT
-if ! apk add -q --virtual .warp-setup wgcf@busylinux 2>/dev/null; then
-    "$TOOLS/update.sh" --yes wgcf
-fi
 apk add -q wireguard-tools-wg
 
-# wgcf keeps its account and profile in the current directory.
 umask 077
 mkdir -p "$DIR"
-cd "$DIR"
-if [ ! -f wgcf-account.toml ]; then
+token=
+if [ ! -f "$ACCOUNT" ]; then
     echo "Registering a WARP account (Cloudflare's terms: https://www.cloudflare.com/application/terms/)"
-    wgcf register --accept-tos
+    key=$(wg genkey)
+    reply=$(api reg "{\"key\":\"$(printf %s "$key" | wg pubkey)\",\"install_id\":\"\",\"fcm_token\":\"\",\"tos\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",\"model\":\"PC\",\"serial_number\":\"\",\"locale\":\"en_US\",\"os_version\":\"16.0.0\",\"key_type\":\"curve25519\",\"tunnel_type\":\"wireguard\"}")
+    id=$(echo "$reply" | json id) token=$(echo "$reply" | json token)
+    [ -n "$id" ] && [ -n "$token" ] || die "no account in Cloudflare's reply"
+    printf "device_id = '%s'\naccess_token = '%s'\nprivate_key = '%s'\nlicense_key = '%s'\n" \
+        "$id" "$token" "$key" "$(echo "$reply" | json license)" > "$ACCOUNT"
 fi
-[ -z "${1:-}" ] || wgcf update --license-key "$1"
-wgcf generate
-chmod 600 wgcf-account.toml wgcf-profile.conf
+id=$(toml device_id) token=$(toml access_token) key=$(toml private_key)
+[ -n "$id" ] && [ -n "$token" ] && [ -n "$key" ] || die "$ACCOUNT lacks device_id, access_token or private_key"
+
+if [ -n "${1:-}" ]; then
+    # BusyBox's wget cannot PUT.
+    trap 'apk del -q .warp-setup 2>/dev/null || :' EXIT
+    apk add -q --virtual .warp-setup curl
+    curl -fsS -o /dev/null -X PUT -A "$AGENT" -H "CF-Client-Version: $VERSION" \
+        -H "Authorization: Bearer $token" -H 'Content-Type: application/json; charset=UTF-8' \
+        -d "{\"license\":\"$1\"}" "$API/reg/$id/account" || die "Cloudflare did not take the license key"
+    sed -i "s/^license_key *=.*/license_key = '$1'/" "$ACCOUNT"
+fi
+
+# The device's current peer and addresses, as wgcf generate writes them.
+reply=$(api "reg/$id")
+peer=$(echo "$reply" | json public_key) host=$(echo "$reply" | json host)
+v4=$(echo "$reply" | sed -n 's/.*"addresses":{"v4":"\([^"]*\)".*/\1/p')
+v6=$(echo "$reply" | sed -n 's/.*"addresses":{[^}]*"v6":"\([^"]*\)".*/\1/p')
+[ -n "$peer" ] && [ -n "$host" ] && [ -n "$v4" ] && [ -n "$v6" ] ||
+    die "no WireGuard peer in Cloudflare's reply"
+cat > "$PROFILE" <<EOT
+[Interface]
+PrivateKey = $key
+Address = $v4/32, $v6/128
+DNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001
+MTU = 1280
+[Peer]
+PublicKey = $peer
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = $host
+EOT
+chmod 600 "$ACCOUNT" "$PROFILE"
 
 install -Dm755 "$TOOLS/warp" /usr/sbin/warp
 echo "Done: doas warp on, then doas warp off."

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Cloudflare WARP as a plain WireGuard interface, from a wgcf profile.
+# Cloudflare WARP as a plain WireGuard interface, from the profile warp-setup writes.
 set -eu
 
 usage() {

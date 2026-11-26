@@ -135,8 +135,9 @@ MangoHud's frame-time graph rather than average FPS.
 owned by you, mode 0700), the mimalloc preload, and shows the update notice.
 
 `doas` lets `wheel` run anything as root, remembering your password for a
-while (`permit persist :wheel`). It is the base system's only setuid program
-(packages such as `dbus` add their own helpers): Alpine's
+while (`permit persist :wheel`). It is the only setuid program (the desktop keeps
+`dbus`'s and the document portal's helpers out, see
+[Desktop](Desktop.md#install)): Alpine's
 `busybox-suid`, which makes BusyBox's `su`, `passwd`, `mount`, `umount`,
 `crontab`, `vlock` and `traceroute` setuid root, is not installed. Those
 commands still work for root, so as a user put `doas` in front:

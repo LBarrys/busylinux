@@ -107,7 +107,7 @@ sleep 1
 check firewall    'nft list chain inet filter input | grep -q "policy drop"'
 check forward     'nft list chain inet filter forward | grep -q "policy drop"'
 check dhcp        'for i in $(seq 60); do ip -4 addr show | grep -q "inet 10\.0\.2\." && break; sleep 1; done; ip -4 addr show | grep -q "inet 10\.0\.2\."'
-check services    'for i in $(seq 10); do [ "$(for s in syslogd klogd crond acpid dhcp slowstop; do sv status /etc/service/$s; done | grep -c "^run:")" = 6 ] && break; sleep 1; done; [ "$i" -lt 10 ]'
+check services    'for i in $(seq 10); do [ "$(for s in syslogd klogd crond acpid dhcp slowstop cpu; do sv status /etc/service/$s; done | grep -c "^run:")" = 7 ] && break; sleep 1; done; [ "$i" -lt 10 ]'
 check esp         'grep -q " /boot vfat " /proc/mounts && [ -f /boot/vmlinuz-busylinux ]'
 check cgroup2     'grep -q "^cgroup2 /sys/fs/cgroup " /proc/mounts'
 check devfd       '[ -L /dev/fd ] && [ "$(echo fd-ok | cat /dev/stdin)" = fd-ok ] && [ -e /dev/fd/0 ]'

@@ -158,7 +158,7 @@ pass "desktop packages load"
 # dwl itself, with its patches and config.h: wlroots' headless backend, a session
 # bus for the systray, and a font for the bar; it must stay up and serve Wayland.
 limit=300
-check dwl         'apk add -q dbus font-dejavu >/dev/null 2>&1 && mkdir -p -m 700 /tmp/xdg && (XDG_RUNTIME_DIR=/tmp/xdg WLR_BACKENDS=headless WLR_RENDERER=pixman dbus-run-session -- dwl >/tmp/dwl.log 2>&1 &) && sleep 10 && pidof dwl >/dev/null && ls /tmp/xdg/wayland-* >/dev/null && kill $(pidof dwl) || { tail -n 20 /tmp/dwl.log; false; }'
+check dwl         'apk add -q dbus font-dejavu "!dbus-daemon-launch-helper" >/dev/null 2>&1 && mkdir -p -m 700 /tmp/xdg && (XDG_RUNTIME_DIR=/tmp/xdg WLR_BACKENDS=headless WLR_RENDERER=pixman dbus-run-session -- dwl >/tmp/dwl.log 2>&1 &) && sleep 10 && pidof dwl >/dev/null && ls /tmp/xdg/wayland-* >/dev/null && kill $(pidof dwl) || { tail -n 20 /tmp/dwl.log; false; }'
 limit=90
 # The test edited /etc/inittab, so updating busylinux-init left inittab.apk-new.
 check apk-new     'grep -q "/etc/inittab.apk-new" /tmp/update.log'

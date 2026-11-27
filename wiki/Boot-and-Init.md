@@ -76,6 +76,7 @@ script, and optionally `log/run`:
 | `seatd` | once `seatd` is installed: seat access for Wayland, group `seat` |
 | `dbus` | once `dbus` is installed: the system bus |
 | `scx` | the sched_ext scheduler `/etc/scx.conf` names; none by default (below) |
+| `cpu` | the CPU's energy preference and boost from `/etc/cpu.conf`; the kernel's by default (below) |
 
 `seatd` and `dbus` sleep for a minute and look again while their program is
 missing, so installing it later is enough. No reboot needed.
@@ -123,6 +124,28 @@ Is it worth it? For gaming on a single-CCD CPU, EEVDF is already good;
 `scx_simple` can smooth frame times when the CPU is fully loaded (shader
 compilation, background builds), and costs nothing to try. Measure with
 MangoHud's frame-time graph rather than average FPS.
+
+## CPU power
+
+The `cpu` service sets the CPU's frequency policy from `/etc/cpu.conf`, and
+again every minute, so an edit takes effect within a minute without a restart:
+
+```sh
+# /etc/cpu.conf
+EPP=balance_power   # performance, balance_performance (default), balance_power, power
+BOOST=              # 1 or 0; empty: the kernel's (on)
+```
+
+`EPP` is amd-pstate-epp's energy-performance preference: how eagerly a busy
+core climbs to its highest clock. `balance_power` still boosts, less eagerly,
+and runs cooler and quieter under load. `BOOST=0` holds the cores at their
+base clock (4.2 GHz on a 7800X3D): much cooler, about 5-10% slower on one
+thread. Idle power hardly changes either way; idle cores sleep in C3.
+`doctor` warns when the CPU is not at what the file asks.
+
+There is no `/etc/rc.local` any more: own boot commands go in a service of
+their own (see [Services](#services-runit)). `doctor` warns about a left-over one,
+which nothing runs.
 
 ## Logins
 

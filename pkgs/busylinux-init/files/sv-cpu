@@ -1,0 +1,19 @@
+#!/bin/sh
+# The CPU frequency policy in /etc/cpu.conf: the energy-performance preference
+# and boost. Empty values leave the kernel's. Sets them again every minute, so
+# an edit takes effect without a restart and a CPU brought online gets them too.
+exec 2>&1
+EPP='' BOOST=''
+# shellcheck source=/dev/null
+[ ! -f /etc/cpu.conf ] || . /etc/cpu.conf
+if [ -n "$EPP" ]; then
+    for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_preference; do
+        [ -w "$f" ] || continue
+        [ "$(cat "$f")" = "$EPP" ] || echo "$EPP" > "$f" || echo "cannot set EPP $EPP in $f"
+    done
+fi
+b=/sys/devices/system/cpu/cpufreq/boost
+if [ -n "$BOOST" ] && [ -w "$b" ] && [ "$(cat "$b")" != "$BOOST" ]; then
+    echo "$BOOST" > "$b" || echo "cannot set boost $BOOST"
+fi
+exec sleep 60

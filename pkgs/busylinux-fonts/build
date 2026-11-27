@@ -3,7 +3,9 @@
 z=$(command -v 7zz || command -v 7z)
 # x ARCHIVE DIR NAME...: the files named, from anywhere in the archive.
 x() { a=$1 o=x/$2; shift 2; $z x -y -o"$o" "$a" "$@" -r > /dev/null; }
-x Inter-*.zip inter Inter.ttc
+# The static faces, one per file: Firefox mixes up the faces of Inter.ttc,
+# whose upright and italic faces number their glyphs differently.
+x Inter-*.zip inter 'Inter-*.ttf'
 x Fira_Code_*.zip fira-code 'FiraCode-*.ttf'
 # The plain family; the archive also has UI, FD, NL and RD variants.
 x vazirmatn-*.zip vazirmatn Vazirmatn-Thin.ttf Vazirmatn-ExtraLight.ttf Vazirmatn-Light.ttf \
@@ -28,7 +30,8 @@ done
 # Fira Code's variable font would shadow its fixed weights.
 rm -f "$d/fira-code/FiraCode-VF.ttf"
 chmod 644 "$d"/*/*
-for f in inter/Inter.ttc fira-code/FiraCode-Medium.ttf vazirmatn/Vazirmatn-Medium.ttf \
+for f in inter/Inter-Medium.ttf inter/Inter-SemiBoldItalic.ttf \
+         fira-code/FiraCode-Medium.ttf vazirmatn/Vazirmatn-Medium.ttf \
          sarasa-gothic/Sarasa-Regular.ttc openmoji/OpenMoji-color-cbdt.ttf \
          nerd-symbols/SymbolsNerdFont-Regular.ttf unifont/unifont.otf; do
     [ -s "$d/$f" ] || { echo "missing $f" >&2; exit 1; }
